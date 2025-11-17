@@ -6,6 +6,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   Platform,
   StyleSheet,
@@ -133,80 +134,88 @@ export default function CreateProductModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          {/* 7. Lógica de Loading Interno */}
-          {isLoadingCategories ? (
-            <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" />
-              <Text>Carregando categorias...</Text>
-            </View>
-          ) : (
-            <>
-              <Text style={styles.modalTitle}>Cadastrar Novo Produto</Text>
-
-              <Text style={styles.label}>Código de Barras:</Text>
-              <TextInput
-                style={[styles.input, styles.inputDisabled]}
-                value={scannedBarcode || ""}
-                editable={false}
-              />
-
-              <Text style={styles.label}>Nome do Produto:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: Óleo YPF 1L 15W40"
-                value={newProductName}
-                onChangeText={setNewProductName}
-              />
-
-              <Text style={styles.label}>Categoria:</Text>
-              <View style={styles.pickerContainer}>
-                <Picker
-                  selectedValue={newCategory}
-                  onValueChange={(itemValue) => setNewCategory(itemValue!)}
-                  style={styles.picker}>
-                  {categories.map((cat) => (
-                    <Picker.Item key={cat.id} label={cat.name} value={cat.id} />
-                  ))}
-                </Picker>
+      <KeyboardAvoidingView behavior="padding" style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            {/* 7. Lógica de Loading Interno */}
+            {isLoadingCategories ? (
+              <View style={styles.loadingContainer}>
+                <ActivityIndicator size="large" />
+                <Text>Carregando categorias...</Text>
               </View>
+            ) : (
+              <>
+                <Text style={styles.modalTitle}>Cadastrar Novo Produto</Text>
 
-              <Text style={styles.label}>
-                Notificar Vencimento (Dias antes):
-              </Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: 7"
-                keyboardType="number-pad"
-                value={newThresholdDays}
-                onChangeText={setNewThresholdDays}
-              />
+                <Text style={styles.label}>Código de Barras:</Text>
+                <TextInput
+                  style={[styles.input, styles.inputDisabled]}
+                  value={scannedBarcode || ""}
+                  editable={false}
+                />
 
-              <TouchableOpacity
-                style={[
-                  styles.saveButton,
-                  isCreatingProduct && styles.buttonDisabled,
-                ]}
-                onPress={handleCreateProduct} // Chama a função interna
-                disabled={isCreatingProduct}>
-                {isCreatingProduct ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveButtonText}>Salvar no Catálogo</Text>
-                )}
-              </TouchableOpacity>
+                <Text style={styles.label}>Nome do Produto:</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: Óleo YPF 1L 15W40"
+                  value={newProductName}
+                  onChangeText={setNewProductName}
+                />
 
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={onClose}
-                disabled={isCreatingProduct}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-            </>
-          )}
+                <Text style={styles.label}>Categoria:</Text>
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newCategory}
+                    onValueChange={(itemValue) => setNewCategory(itemValue!)}
+                    style={styles.picker}>
+                    {categories.map((cat) => (
+                      <Picker.Item
+                        key={cat.id}
+                        label={cat.name}
+                        value={cat.id}
+                      />
+                    ))}
+                  </Picker>
+                </View>
+
+                <Text style={styles.label}>
+                  Notificar Vencimento (Dias antes):
+                </Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="Ex: 7"
+                  keyboardType="number-pad"
+                  value={newThresholdDays}
+                  onChangeText={setNewThresholdDays}
+                />
+
+                <TouchableOpacity
+                  style={[
+                    styles.saveButton,
+                    isCreatingProduct && styles.buttonDisabled,
+                  ]}
+                  onPress={handleCreateProduct} // Chama a função interna
+                  disabled={isCreatingProduct}>
+                  {isCreatingProduct ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <Text style={styles.saveButtonText}>
+                      Salvar no Catálogo
+                    </Text>
+                  )}
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={styles.cancelButton}
+                  onPress={onClose}
+                  disabled={isCreatingProduct}>
+                  <Text style={styles.cancelButtonText}>Cancelar</Text>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

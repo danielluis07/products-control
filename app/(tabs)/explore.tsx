@@ -120,32 +120,35 @@ export default function CameraScannerScreen() {
       const data = await response.json();
 
       if (!response.ok) {
-        if (response.status === 404 && user?.role === "admin") {
+        // Se 404 (Não Encontrado), QUALQUER usuário (Admin ou Gerente)
+        // pode tentar cadastrar.
+        if (response.status === 404) {
           setScannedBarcode(barcode);
-          setIsCreateModalVisible(true); // Correto: Admin cadastra
-          setIsLoadingProduct(false);
-        } else if (response.status === 404) {
+          setIsCreateModalVisible(true); // Abre o modal de criação
+          setIsLoadingProduct(false); // Se 409 (Conflito - Barcode já existe) // (Isso será tratado DENTRO do CreateProductModal,
+          // mas é bom ter um fallback aqui caso a API mude)
+        } else if (response.status === 409) {
           Alert.alert(
             "Erro",
-            `Produto com código "${barcode}" não encontrado no catálogo.`
+            data.message || "Este código de barras já foi cadastrado."
           );
-          closeLotModal(); // Correto: Gerente recebe erro
+          closeLotModal(); // Reseta o scanner
         } else {
+          // Outros erros
           Alert.alert("Erro", data.message || "Erro ao buscar produto.");
           closeLotModal();
         }
       } else {
+        // --- LÓGICA DE SUCESSO 200 OK ---
         if (user?.role === "admin") {
-          // É ADMIN e o produto FOI encontrado (200 OK)
-          // Apenas mostre o aviso e resete o scanner.
+          // Admin é notificado que o produto já existe
           Alert.alert(
             "Produto Já Cadastrado",
             `O produto "${data.data.name}" já existe no catálogo.`
           );
           closeLotModal(); // Reseta o scanner
         } else {
-          // É GERENTE e o produto FOI encontrado (200 OK)
-          // Fluxo normal do Gerente: abre o modal de adicionar lote [cite: 21, 30]
+          // É GERENTE, abre o modal de adicionar lote
           setFoundProduct(data.data);
         }
       }

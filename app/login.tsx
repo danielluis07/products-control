@@ -35,6 +35,8 @@ export default function LoginScreen() {
   const passwordInputRef = useRef<TextInput>(null);
   const { login } = useAuth();
 
+  console.log("API_BASE_URL", API_BASE_URL);
+
   const validateForm = (): boolean => {
     let isValid = true;
 
@@ -54,7 +56,7 @@ export default function LoginScreen() {
       setPasswordError("Senha é obrigatória");
       isValid = false;
     } else if (password.length < 8) {
-      setPasswordError("Senha deve ter pelo menos 6 caracteres");
+      setPasswordError("Senha deve ter pelo menos 8 caracteres");
       isValid = false;
     } else {
       setPasswordError("");
@@ -80,13 +82,15 @@ export default function LoginScreen() {
         headers: {
           "Content-Type": "application/json",
           "ngrok-skip-browser-warning": "true",
-          Origin: "http://localhost:3000",
+          Origin: API_BASE_URL!,
         },
         body: JSON.stringify({
           email: email.toLowerCase().trim(),
           password,
         }),
       });
+
+      console.log("Response:", response);
 
       const data = await response.json();
 
@@ -187,7 +191,7 @@ export default function LoginScreen() {
     email.trim().length > 0 &&
     password.trim().length > 0 &&
     validateEmail(email) &&
-    password.length >= 6;
+    password.length >= 8;
 
   return (
     <KeyboardAvoidingView

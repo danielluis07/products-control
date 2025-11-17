@@ -5,6 +5,7 @@ import { useFocusEffect, useRouter } from "expo-router";
 import React, { useCallback, useState } from "react";
 import {
   ActivityIndicator,
+  Alert,
   FlatList,
   StyleSheet,
   Text,
@@ -36,12 +37,15 @@ export default function UserClient() {
   const [searchQuery, setSearchQuery] = useState("");
   const debouncedSearch = useDebounce(searchQuery, 300);
 
+  // Estados para seleção múltipla
+  const [selectionMode, setSelectionMode] = useState(false);
+  const [selectedItems, setSelectedItems] = useState<Set<string>>(new Set());
+  const [isDeleting, setIsDeleting] = useState(false);
+
   // Função para buscar inventário
   const fetchInventory = async (pageNum: number, isRefresh = false) => {
     if (!token) return;
 
-    // Se for refresh (página 1), mostra loading principal
-    // Se for carregar mais, mostra loading no rodapé
     if (isRefresh) {
       setIsLoading(true);
     } else {
@@ -76,7 +80,6 @@ export default function UserClient() {
         throw new Error(result.message || "Erro ao buscar inventário");
       }
 
-      // Se for refresh, substitui os itens. Se não, adiciona aos existentes
       if (isRefresh) {
         setItems(result.data);
       } else {
@@ -99,6 +102,9 @@ export default function UserClient() {
       setPage(1);
       setHasMore(true);
       fetchInventory(1, true);
+      // Limpa seleção ao voltar para a tela
+      setSelectionMode(false);
+      setSelectedItems(new Set());
     }, [token, debouncedSearch, logout])
   );
 
@@ -109,6 +115,121 @@ export default function UserClient() {
       setPage(nextPage);
       fetchInventory(nextPage, false);
     }
+  };
+
+  // Ativa o modo de seleção ao segurar um item
+  const handleLongPress = (itemId: string) => {
+    setSelectionMode(true);
+    setSelectedItems(new Set([itemId]));
+  };
+
+  // Alterna a seleção de um item
+  const toggleItemSelection = (itemId: string) => {
+    if (!selectionMode) return;
+
+    setSelectedItems((prev) => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemId)) {
+        newSet.delete(itemId);
+      } else {
+        newSet.add(itemId);
+      }
+      return newSet;
+    });
+  };
+
+  // Cancela o modo de seleção
+  const cancelSelection = () => {
+    setSelectionMode(false);
+    setSelectedItems(new Set());
+  };
+
+  // Seleciona todos os itens
+  const selectAll = () => {
+    const allIds = new Set(items.map((item) => item.id));
+    setSelectedItems(allIds);
+  };
+
+  // Remove os itens selecionados
+  const deleteSelectedItems = async () => {
+    if (selectedItems.size === 0) return;
+
+    Alert.alert(
+      "Confirmar remoção",
+      `Deseja realmente remover ${selectedItems.size} ${
+        selectedItems.size === 1 ? "item" : "itens"
+      }?`,
+      [
+        {
+          text: "Cancelar",
+          style: "cancel",
+        },
+        {
+          text: "Remover",
+          style: "destructive",
+          onPress: async () => {
+            setIsDeleting(true);
+            const itemsToDelete = Array.from(selectedItems);
+
+            try {
+              const response = await fetch(
+                `${process.env.EXPO_PUBLIC_API_URL}/api/inventory-items/delete`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${token}`,
+                  },
+                  body: JSON.stringify({
+                    ids: itemsToDelete,
+                  }),
+                }
+              );
+
+              const result = await response.json();
+
+              setIsDeleting(false);
+
+              if (!response.ok) {
+                if (response.status === 401 || response.status === 403) {
+                  logout();
+                }
+                throw new Error(
+                  result.message || "Erro ao deletar itens do inventário"
+                );
+              }
+
+              // Remove os itens deletados da lista local
+              setItems((prev) =>
+                prev.filter((item) => !selectedItems.has(item.id))
+              );
+
+              // Limpa a seleção
+              cancelSelection();
+
+              // Mostra mensagem de sucesso
+              Alert.alert(
+                "Sucesso",
+                `${itemsToDelete.length} ${
+                  itemsToDelete.length === 1
+                    ? "item removido"
+                    : "itens removidos"
+                } com sucesso!`
+              );
+            } catch (error) {
+              setIsDeleting(false);
+              console.error("Erro ao deletar itens:", error);
+              Alert.alert(
+                "Erro",
+                error instanceof Error
+                  ? error.message
+                  : "Não foi possível remover os itens. Tente novamente."
+              );
+            }
+          },
+        },
+      ]
+    );
   };
 
   // Renderiza o loading no rodapé da lista
@@ -141,29 +262,69 @@ export default function UserClient() {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.searchContainer}>
-        <View style={styles.searchInputWrapper}>
-          <Ionicons
-            name="search"
-            size={20}
-            color="#999"
-            style={styles.searchIcon}
-          />
-          <TextInput
-            style={styles.searchInput}
-            placeholder="Buscar por nome do produto..."
-            value={searchQuery}
-            onChangeText={setSearchQuery}
-            autoCapitalize="none"
-            autoCorrect={false}
-          />
-        </View>
-        {isLoading && (
-          <ActivityIndicator size="small" style={{ marginTop: 8 }} />
-        )}
-      </View>
+      {/* Barra de ações quando está em modo de seleção */}
+      {selectionMode && (
+        <View style={styles.selectionBar}>
+          <TouchableOpacity
+            onPress={cancelSelection}
+            style={styles.selectionButton}>
+            <Ionicons name="close" size={24} color="#333" />
+          </TouchableOpacity>
 
-      {!isLoading && items.length > 0 && (
+          <Text style={styles.selectionText}>
+            {selectedItems.size} selecionado(s)
+          </Text>
+
+          <View style={styles.selectionActions}>
+            <TouchableOpacity
+              onPress={selectAll}
+              style={styles.selectionButton}>
+              <Text style={styles.selectAllText}>Selecionar tudo</Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              onPress={deleteSelectedItems}
+              style={[
+                styles.deleteButton,
+                selectedItems.size === 0 && styles.deleteButtonDisabled,
+              ]}
+              disabled={selectedItems.size === 0 || isDeleting}>
+              {isDeleting ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <Ionicons name="trash" size={20} color="#fff" />
+              )}
+            </TouchableOpacity>
+          </View>
+        </View>
+      )}
+
+      {/* Campo de busca - escondido em modo de seleção */}
+      {!selectionMode && (
+        <View style={styles.searchContainer}>
+          <View style={styles.searchInputWrapper}>
+            <Ionicons
+              name="search"
+              size={20}
+              color="#999"
+              style={styles.searchIcon}
+            />
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Buscar por nome do produto..."
+              value={searchQuery}
+              onChangeText={setSearchQuery}
+              autoCapitalize="none"
+              autoCorrect={false}
+            />
+          </View>
+          {isLoading && (
+            <ActivityIndicator size="small" style={{ marginTop: 8 }} />
+          )}
+        </View>
+      )}
+
+      {!isLoading && items.length > 0 && !selectionMode && (
         <View style={styles.countContainer}>
           <Text style={styles.countText}>
             {items.length} {items.length === 1 ? "lote" : "lotes"} encontrado(s)
@@ -181,36 +342,66 @@ export default function UserClient() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => {
             const isExpired = new Date(item.expiryDate) < new Date();
+            const isSelected = selectedItems.has(item.id);
+
             return (
               <TouchableOpacity
-                style={styles.itemContainer}
-                onPress={() => router.push(`/inventory/${item.id}`)}>
-                <View>
-                  <Text
-                    style={styles.itemName}
-                    numberOfLines={2}
-                    ellipsizeMode="tail">
-                    {item.productName}
-                  </Text>
-                  <Text style={styles.itemQuantity}>
-                    Quantidade: {item.currentQuantity}
-                  </Text>
-                </View>
-                <View>
-                  <Text
-                    style={[styles.itemDate, isExpired && styles.expiredText]}>
-                    {isExpired ? "VENCIDO" : "Vence em:"}
-                  </Text>
-                  <Text
-                    style={[styles.itemDate, isExpired && styles.expiredText]}>
-                    {formatDate(item.expiryDate)}
-                  </Text>
+                style={[
+                  styles.itemContainer,
+                  isSelected && styles.itemContainerSelected,
+                ]}
+                onPress={() => {
+                  if (selectionMode) {
+                    toggleItemSelection(item.id);
+                  } else {
+                    router.push(`/inventory/${item.id}`);
+                  }
+                }}
+                onLongPress={() => handleLongPress(item.id)}>
+                {selectionMode && (
+                  <View style={styles.checkboxContainer}>
+                    <Ionicons
+                      name={isSelected ? "checkbox" : "square-outline"}
+                      size={24}
+                      color={isSelected ? "#007AFF" : "#999"}
+                    />
+                  </View>
+                )}
+
+                <View style={styles.itemContent}>
+                  <View>
+                    <Text
+                      style={styles.itemName}
+                      numberOfLines={2}
+                      ellipsizeMode="tail">
+                      {item.productName}
+                    </Text>
+                    <Text style={styles.itemQuantity}>
+                      Quantidade: {item.currentQuantity}
+                    </Text>
+                  </View>
+                  <View>
+                    <Text
+                      style={[
+                        styles.itemDate,
+                        isExpired && styles.expiredText,
+                      ]}>
+                      {isExpired ? "VENCIDO" : "Vence em:"}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.itemDate,
+                        isExpired && styles.expiredText,
+                      ]}>
+                      {formatDate(item.expiryDate)}
+                    </Text>
+                  </View>
                 </View>
               </TouchableOpacity>
             );
           }}
           onEndReached={handleLoadMore}
-          onEndReachedThreshold={0.5} // Carrega quando está a 50% do fim
+          onEndReachedThreshold={0.5}
           ListFooterComponent={renderFooter}
         />
       )}
@@ -239,7 +430,6 @@ const styles = StyleSheet.create({
   },
   itemContainer: {
     flexDirection: "row",
-    justifyContent: "space-between",
     alignItems: "center",
     backgroundColor: "#fff",
     padding: 16,
@@ -247,6 +437,20 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 8,
     elevation: 1,
+  },
+  itemContainerSelected: {
+    backgroundColor: "#E3F2FD",
+    borderColor: "#007AFF",
+    borderWidth: 2,
+  },
+  itemContent: {
+    flex: 1,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  checkboxContainer: {
+    marginRight: 12,
   },
   itemName: {
     fontSize: 16,
@@ -298,5 +502,47 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: "#666",
     fontWeight: "500",
+  },
+  selectionBar: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    backgroundColor: "#fff",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "#e0e0e0",
+    elevation: 2,
+  },
+  selectionButton: {
+    padding: 8,
+  },
+  selectionText: {
+    flex: 1,
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  selectionActions: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  selectAllText: {
+    color: "#007AFF",
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  deleteButton: {
+    backgroundColor: "#FF3B30",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+    minWidth: 44,
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  deleteButtonDisabled: {
+    backgroundColor: "#FFCCCB",
   },
 });

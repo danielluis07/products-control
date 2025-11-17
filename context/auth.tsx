@@ -465,7 +465,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             Authorization: `Bearer ${currentToken}`,
             "Content-Type": "application/json",
             "ngrok-skip-browser-warning": "true",
-            Origin: "http://localhost:3000",
+            Origin: API_URL!,
           },
           body: JSON.stringify({}),
         });

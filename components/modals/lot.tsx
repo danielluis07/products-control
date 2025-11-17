@@ -5,6 +5,7 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
   ScrollView,
   StyleSheet,
@@ -145,81 +146,85 @@ export default function LotModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Adicionar Lotes (Em Lote)</Text>
+      <KeyboardAvoidingView behavior="padding" style={styles.modalContainer}>
+        <View style={styles.modalContainer}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Adicionar Lotes (Em Lote)</Text>
 
-          <ScrollView
-            showsVerticalScrollIndicator={false}
-            keyboardShouldPersistTaps="handled"
-            contentContainerStyle={{ paddingBottom: 20 }}>
-            <Text style={styles.productName}>{foundProduct?.name}</Text>
-            <Text style={styles.productBarcode}>
-              Cód: {foundProduct?.barcode}
-            </Text>
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled"
+              contentContainerStyle={{ paddingBottom: 20 }}>
+              <Text style={styles.productName}>{foundProduct?.name}</Text>
+              <Text style={styles.productBarcode}>
+                Cód: {foundProduct?.barcode}
+              </Text>
 
-            {/* Inputs */}
-            <Text style={styles.label}>Quantidade:</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="Ex: 50"
-              keyboardType="number-pad"
-              value={quantity}
-              onChangeText={setQuantity}
-              editable={!isSaving}
-            />
-            <Text style={styles.label}>Data de Validade:</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="DD/MM/AAAA"
-              value={expiryDate}
-              onChangeText={handleDateChange}
-              keyboardType="number-pad"
-              editable={!isSaving}
-            />
+              {/* Inputs */}
+              <Text style={styles.label}>Quantidade:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: 50"
+                keyboardType="number-pad"
+                value={quantity}
+                onChangeText={setQuantity}
+                editable={!isSaving}
+              />
+              <Text style={styles.label}>Data de Validade:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="DD/MM/AAAA"
+                value={expiryDate}
+                onChangeText={handleDateChange}
+                keyboardType="number-pad"
+                editable={!isSaving}
+              />
 
-            <TouchableOpacity
-              style={[styles.addButton, isSaving && styles.buttonDisabled]}
-              onPress={handleAddLotToList}
-              disabled={isSaving}>
-              <Text style={styles.addButtonText}>+ Adicionar Lote à Lista</Text>
-            </TouchableOpacity>
-
-            {/* Lista de Lotes */}
-            {lotes.length > 0 && (
-              <Text style={styles.listTitle}>Lotes a Salvar:</Text>
-            )}
-
-            {/* SUBSTITUA a FlatList por um map simples */}
-            {lotes.map((item) => (
-              <View key={item.id} style={styles.lotItem}>
-                <Text>{item.quantity} unidades</Text>
-                <Text>Vence em: {item.expiryDate}</Text>
-              </View>
-            ))}
-
-            {/* Botões Finais */}
-            <TouchableOpacity
-              style={[styles.saveButton, isSaving && styles.buttonDisabled]}
-              onPress={handleSaveAllLots}
-              disabled={isSaving}>
-              {isSaving ? (
-                <ActivityIndicator color="#fff" />
-              ) : (
-                <Text style={styles.saveButtonText}>
-                  Salvar {lotes.length > 0 ? `(${lotes.length})` : ""} Lotes
+              <TouchableOpacity
+                style={[styles.addButton, isSaving && styles.buttonDisabled]}
+                onPress={handleAddLotToList}
+                disabled={isSaving}>
+                <Text style={styles.addButtonText}>
+                  + Adicionar Lote à Lista
                 </Text>
+              </TouchableOpacity>
+
+              {/* Lista de Lotes */}
+              {lotes.length > 0 && (
+                <Text style={styles.listTitle}>Lotes a Salvar:</Text>
               )}
-            </TouchableOpacity>
-            <TouchableOpacity
-              style={styles.cancelButton}
-              onPress={onClose}
-              disabled={isSaving}>
-              <Text style={styles.cancelButtonText}>Cancelar</Text>
-            </TouchableOpacity>
-          </ScrollView>
+
+              {/* SUBSTITUA a FlatList por um map simples */}
+              {lotes.map((item) => (
+                <View key={item.id} style={styles.lotItem}>
+                  <Text>{item.quantity} unidades</Text>
+                  <Text>Vence em: {item.expiryDate}</Text>
+                </View>
+              ))}
+
+              {/* Botões Finais */}
+              <TouchableOpacity
+                style={[styles.saveButton, isSaving && styles.buttonDisabled]}
+                onPress={handleSaveAllLots}
+                disabled={isSaving}>
+                {isSaving ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>
+                    Salvar {lotes.length > 0 ? `(${lotes.length})` : ""} Lotes
+                  </Text>
+                )}
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={onClose}
+                disabled={isSaving}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          </View>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

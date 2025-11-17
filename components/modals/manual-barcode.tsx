@@ -32,15 +32,14 @@ export default function ManualBarcodeModal({
       animationType="slide"
       onRequestClose={closeManualModal}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        behavior={Platform.OS === "ios" ? "padding" : "padding"}
         style={styles.modalContainer} //  reutilizado
       >
         <View style={styles.modalContent}>
-          {" "}
           {/* reutilizado */}
-          <Text style={styles.modalTitle}>Digitação Manual</Text>{" "}
+          <Text style={styles.modalTitle}>Digitação Manual</Text>
           {/* reutilizado */}
-          <Text style={styles.label}>Código de Barras:</Text>{" "}
+          <Text style={styles.label}>Código de Barras:</Text>
           {/* reutilizado */}
           <TextInput
             style={styles.input} // reutilizado
@@ -70,7 +69,7 @@ export default function ManualBarcodeModal({
             style={styles.cancelButton} // reutilizado
             onPress={closeManualModal}
             disabled={isLoadingProduct}>
-            <Text style={styles.cancelButtonText}>Cancelar</Text>{" "}
+            <Text style={styles.cancelButtonText}>Cancelar</Text>
             {/* reutilizado */}
           </TouchableOpacity>
         </View>
