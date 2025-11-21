@@ -39,6 +39,8 @@ export default function CameraScannerScreen() {
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [foundProduct, setFoundProduct] = useState<Product | null>(null);
 
+  const isScanning = !foundProduct && !isCreateModalVisible;
+
   useEffect(() => {
     if (!permission?.granted) requestPermission();
   }, [permission, requestPermission]);
@@ -87,15 +89,18 @@ export default function CameraScannerScreen() {
   };
 
   useEffect(() => {
-    startAnimation();
-  }, []);
+    if (isScanning) {
+      animation.setValue(0); // Reseta a posição para o topo
+      startAnimation(); // Inicia o loop
+    } else {
+      animation.stopAnimation(); // Para o loop se o modal abrir (economiza bateria)
+    }
+  }, [isScanning]); // <-- Isso garante que rode sempre que a tela do scanner voltar
 
   const closeLotModal = () => {
     setFoundProduct(null);
     setIsLoadingProduct(false);
     setScanned(false);
-    animation.setValue(0);
-    startAnimation();
   };
 
   const closeCreateModal = () => {
@@ -108,11 +113,23 @@ export default function CameraScannerScreen() {
     scanningResult: BarcodeScanningResult
   ) => {
     if (scanned || isLoadingProduct) return;
-    setScanned(true);
-    setIsLoadingProduct(true);
+
     const barcode = scanningResult.data;
 
+    // --- ALTERAÇÃO AQUI ---
+    // Filtro de Ruído: Ignora códigos que não tenham tamanho de EAN/UPC padrão.
+    // Isso evita ler "pedaços" de códigos ou interpretações erradas de texturas.
+    // EAN-8 (8 dígitos), UPC-A (12 dígitos), EAN-13 (13 dígitos).
+    if (barcode.length < 8 || barcode.length > 13) {
+      return;
+    }
+    // ----------------------
+
+    setScanned(true);
+    setIsLoadingProduct(true);
+
     try {
+      // ... (O resto da sua lógica permanece exatamente igual) ...
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_API_URL}/api/products?barcode=${barcode}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -120,35 +137,27 @@ export default function CameraScannerScreen() {
       const data = await response.json();
 
       if (!response.ok) {
-        // Se 404 (Não Encontrado), QUALQUER usuário (Admin ou Gerente)
-        // pode tentar cadastrar.
         if (response.status === 404) {
           setScannedBarcode(barcode);
-          setIsCreateModalVisible(true); // Abre o modal de criação
-          setIsLoadingProduct(false); // Se 409 (Conflito - Barcode já existe) // (Isso será tratado DENTRO do CreateProductModal,
-          // mas é bom ter um fallback aqui caso a API mude)
+          setIsCreateModalVisible(true);
         } else if (response.status === 409) {
           Alert.alert(
             "Erro",
             data.message || "Este código de barras já foi cadastrado."
           );
-          closeLotModal(); // Reseta o scanner
+          closeLotModal();
         } else {
-          // Outros erros
           Alert.alert("Erro", data.message || "Erro ao buscar produto.");
           closeLotModal();
         }
       } else {
-        // --- LÓGICA DE SUCESSO 200 OK ---
         if (user?.role === "admin") {
-          // Admin é notificado que o produto já existe
           Alert.alert(
             "Produto Já Cadastrado",
             `O produto "${data.data.name}" já existe no catálogo.`
           );
-          closeLotModal(); // Reseta o scanner
+          closeLotModal();
         } else {
-          // É GERENTE, abre o modal de adicionar lote
           setFoundProduct(data.data);
         }
       }
@@ -208,7 +217,10 @@ export default function CameraScannerScreen() {
           style={StyleSheet.absoluteFillObject}
           onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           barcodeScannerSettings={{
-            barcodeTypes: ["ean13", "ean8", "qr", "code128"],
+            // --- ALTERAÇÃO AQUI ---
+            // Removido 'code128' e 'qr' para evitar leituras falsas em
+            // texturas de embalagens amassadas (como pipoca).
+            barcodeTypes: ["ean13", "ean8"],
           }}
           facing="back"
         />

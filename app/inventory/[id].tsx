@@ -1,5 +1,5 @@
-import RemoveStockModal from "@/components/modals/remove-lot";
-import { useAuth } from "@/context/auth"; // 1. Importe o useAuth
+import AdjustStockModal from "@/components/modals/adjust-lot"; // 1. Importe o novo modal
+import { useAuth } from "@/context/auth";
 import { useFocusEffect, useLocalSearchParams } from "expo-router";
 import { useCallback, useState } from "react";
 import {
@@ -15,7 +15,6 @@ import {
   useSafeAreaInsets,
 } from "react-native-safe-area-context";
 
-// 2. Defina os Tipos de dados (baseado na sua API)
 type Log = {
   id: string;
   action: string;
@@ -40,21 +39,20 @@ export const options = {
   title: "Detalhes do produto",
 };
 
-// A URL da sua API
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 export default function InventoryDetailScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { token, logout } = useAuth(); // 3. Pega o token
+  const { token, logout } = useAuth();
 
-  // 4. Estados para os dados, loading e erro
   const [item, setItem] = useState<LotDetails | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   const insets = useSafeAreaInsets();
 
-  const [isRemoveModalVisible, setIsRemoveModalVisible] = useState(false);
+  // 2. Estado renomeado para refletir que é um ajuste geral
+  const [isAdjustModalVisible, setIsAdjustModalVisible] = useState(false);
 
   const fetchDetails = useCallback(async () => {
     if (!id || !token) return;
@@ -75,7 +73,7 @@ export default function InventoryDetailScreen() {
 
       if (!response.ok) {
         if (response.status === 401 || response.status === 403) {
-          logout(); // Token inválido
+          logout();
         }
         throw new Error(data.message || "Erro ao buscar detalhes do lote");
       }
@@ -89,23 +87,20 @@ export default function InventoryDetailScreen() {
     }
   }, [id, token, logout]);
 
-  // 5. useFocusEffect para buscar os dados
   useFocusEffect(
     useCallback(() => {
       fetchDetails();
-    }, [fetchDetails]) // Dependências
+    }, [fetchDetails])
   );
 
-  const handleCloseRemoveModal = (didSave: boolean) => {
-    setIsRemoveModalVisible(false);
+  // 3. Handler atualizado
+  const handleCloseAdjustModal = (didSave: boolean) => {
+    setIsAdjustModalVisible(false);
     if (didSave) {
-      // Se o modal salvou com sucesso, buscamos os dados
-      // novamente para atualizar a "Quantidade Atual"
-      fetchDetails();
+      fetchDetails(); // Recarrega os dados para atualizar qtd e histórico
     }
   };
 
-  // Função para formatar data (pode mover para utils)
   const formatDate = (dateString: string) => {
     const date = new Date(dateString);
     return date.toLocaleDateString("pt-BR", {
@@ -118,21 +113,22 @@ export default function InventoryDetailScreen() {
   const translateAction = (action: string) => {
     switch (action) {
       case "sold":
-        return "Item vendido";
+        return "Venda";
       case "removed_expired":
-        return "Removido por vencimento";
+        return "Vencimento";
       case "removed_manual":
-        return "Removido manualmente";
+        return "Remoção Manual";
+      case "restock": // 4. Novo case para entrada
+        return "Reabastecimento / Correção";
       default:
         return "Ação desconhecida";
     }
   };
 
-  // 6. Renderiza os estados
   if (isLoading) {
     return (
       <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" />
+        <ActivityIndicator size="large" color="#007AFF" />
       </View>
     );
   }
@@ -155,7 +151,7 @@ export default function InventoryDetailScreen() {
         <Text style={styles.barcode}>Cód: {item.product?.barcode}</Text>
       </View>
 
-      {/* Detalhes principais */}
+      {/* Cards de Detalhes */}
       <View style={styles.detailsCard}>
         <View style={styles.detailItem}>
           <Text style={styles.detailLabel}>Qtd. Atual</Text>
@@ -182,46 +178,59 @@ export default function InventoryDetailScreen() {
           ListEmptyComponent={
             <Text style={styles.emptyText}>Nenhuma atividade registrada.</Text>
           }
-          contentContainerStyle={{ paddingBottom: 80 }}
-          renderItem={({ item: log }) => (
-            <View style={styles.logCard}>
-              <View style={styles.logHeader}>
-                <Text style={styles.logAction}>
-                  {translateAction(log.action)}
+          contentContainerStyle={{ paddingBottom: 100 }}
+          renderItem={({ item: log }) => {
+            // Lógica visual: Se for positivo, mostra verde e sinal de +
+            const isPositive = log.quantityChange > 0;
+
+            return (
+              <View style={styles.logCard}>
+                <View style={styles.logHeader}>
+                  <Text style={styles.logAction}>
+                    {translateAction(log.action)}
+                  </Text>
+                  <Text style={styles.logDate}>
+                    {formatDate(log.timestamp)}
+                  </Text>
+                </View>
+                <Text style={styles.logDetails}>
+                  Quantidade:{" "}
+                  <Text
+                    style={{
+                      fontWeight: "700",
+                      color: isPositive ? "#2E7D32" : "#D32F2F", // Verde ou Vermelho
+                    }}>
+                    {isPositive ? "+" : ""}
+                    {log.quantityChange}
+                  </Text>
                 </Text>
-                <Text style={styles.logDate}>{formatDate(log.timestamp)}</Text>
+                <Text style={styles.logUser}>
+                  Por:{" "}
+                  <Text style={{ fontWeight: "500" }}>
+                    {log.userName || "Usuário"}
+                  </Text>
+                </Text>
               </View>
-              <Text style={styles.logDetails}>
-                Quantidade:{" "}
-                <Text style={{ fontWeight: "600" }}>{log.quantityChange}</Text>
-              </Text>
-              <Text style={styles.logUser}>
-                Por:{" "}
-                <Text style={{ fontWeight: "500" }}>
-                  {log.userName || "Usuário"}
-                </Text>
-              </Text>
-            </View>
-          )}
+            );
+          }}
         />
       </View>
 
-      {/* Botão principal */}
+      {/* Botão Principal */}
       <View style={[styles.footer, { bottom: insets.bottom + 20 }]}>
         <TouchableOpacity
           style={styles.actionButton}
-          onPress={() => setIsRemoveModalVisible(true)}>
-          <Text style={styles.actionButtonText}>
-            Registrar Saída de Estoque
-          </Text>
+          onPress={() => setIsAdjustModalVisible(true)}>
+          <Text style={styles.actionButtonText}>Ajustar Estoque</Text>
         </TouchableOpacity>
       </View>
 
-      <RemoveStockModal
-        visible={isRemoveModalVisible}
+      {/* Modal de Ajuste (Antigo Remover) */}
+      <AdjustStockModal
+        visible={isAdjustModalVisible}
         inventoryItemId={id}
         currentQuantity={item.currentQuantity}
-        onClose={handleCloseRemoveModal}
+        onClose={handleCloseAdjustModal}
       />
     </SafeAreaView>
   );
@@ -292,6 +301,7 @@ const styles = StyleSheet.create({
   },
   logsContainer: {
     paddingHorizontal: 14,
+    flex: 1,
   },
   sectionTitle: {
     fontSize: 18,
@@ -345,15 +355,16 @@ const styles = StyleSheet.create({
     left: 16,
     right: 16,
   },
+  // 5. Estilo do Botão Atualizado
   actionButton: {
-    backgroundColor: "#FF3B30",
+    backgroundColor: "#007AFF", // Azul iOS (Action)
     paddingVertical: 16,
     borderRadius: 12,
     alignItems: "center",
-    shadowColor: "#FF3B30",
-    shadowOpacity: 0.2,
+    shadowColor: "#007AFF",
+    shadowOpacity: 0.3,
     shadowRadius: 6,
-    elevation: 3,
+    elevation: 4,
   },
   actionButtonText: {
     color: "#fff",
