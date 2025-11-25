@@ -129,7 +129,6 @@ export default function CameraScannerScreen() {
     setIsLoadingProduct(true);
 
     try {
-      // ... (O resto da sua lógica permanece exatamente igual) ...
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_API_URL}/api/products?barcode=${barcode}`,
         { headers: { Authorization: `Bearer ${token}` } }
@@ -166,6 +165,30 @@ export default function CameraScannerScreen() {
       Alert.alert("Erro de Conexão", "Não foi possível conectar à API.");
       setIsLoadingProduct(false);
       setScanned(false);
+    }
+  };
+
+  const handleProductCreated = (newProduct: Product) => {
+    // 1. Fecha o modal de criação primeiro
+    setIsCreateModalVisible(false);
+
+    // 2. Decide o fluxo com base no cargo
+    if (user?.role === "admin") {
+      // ADMIN: O fluxo acaba aqui, então PRECISA do aviso visual
+      Alert.alert(
+        "Sucesso",
+        `Produto "${newProduct.name}" cadastrado no catálogo.`
+      );
+      setScanned(false);
+    } else {
+      // GERENTE: O fluxo continua.
+      // A abertura imediata do próximo modal já é a confirmação de sucesso.
+
+      // Pequeno delay (500ms) para suavizar a transição entre modais
+      setTimeout(() => {
+        setFoundProduct(newProduct);
+        // Nota: Não setamos setScanned(false) ainda, pois ele está "trabalhando" no produto
+      }, 500);
     }
   };
 
@@ -276,6 +299,7 @@ export default function CameraScannerScreen() {
         visible={isCreateModalVisible}
         scannedBarcode={scannedBarcode}
         onClose={closeCreateModal}
+        onCreateSuccess={handleProductCreated}
       />
 
       <ManualBarcodeModal

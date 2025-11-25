@@ -1,5 +1,3 @@
-// (Assumindo que está em components/CreateProductModal.tsx)
-
 import { useAuth } from "@/context/auth"; // 1. Precisa do hook de autenticação
 import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useState } from "react";
@@ -27,21 +25,22 @@ type Category = {
 interface CreateProductModalProps {
   visible: boolean;
   scannedBarcode: string | null;
-  onClose: () => void; // A única função que o pai precisa passar
+  onClose: () => void;
+  onCreateSuccess: (product: Product) => void;
 }
 
 export default function CreateProductModal({
   visible,
   scannedBarcode,
   onClose,
+  onCreateSuccess,
 }: CreateProductModalProps) {
-  // 4. A lógica de autenticação e estado agora vive AQUI
   const { token } = useAuth();
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [newProductName, setNewProductName] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
-  const [newThresholdDays, setNewThresholdDays] = useState("7");
+  const [newThresholdDays, setNewThresholdDays] = useState("15");
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
 
   // 5. useEffect para buscar dados e resetar o formulário
@@ -118,8 +117,9 @@ export default function CreateProductModal({
       }
 
       // SUCESSO!
-      Alert.alert("Sucesso", `Produto "${data.data.name}" criado no catálogo.`);
-      onClose(); // Apenas fecha o modal (como discutimos)
+      // Alert.alert("Sucesso", `Produto "${data.data.name}" criado no catálogo.`);
+      // onClose();
+      onCreateSuccess(data.data);
     } catch (error) {
       console.error(error);
       Alert.alert("Não foi possível criar o produto.");
@@ -181,13 +181,18 @@ export default function CreateProductModal({
                 <Text style={styles.label}>
                   Notificar Vencimento (Dias antes):
                 </Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: 7"
-                  keyboardType="number-pad"
-                  value={newThresholdDays}
-                  onChangeText={setNewThresholdDays}
-                />
+
+                <View style={styles.pickerContainer}>
+                  <Picker
+                    selectedValue={newThresholdDays}
+                    onValueChange={(itemValue) =>
+                      setNewThresholdDays(itemValue)
+                    }
+                    style={styles.picker}>
+                    <Picker.Item label="15 dias" value="15" />
+                    <Picker.Item label="30 dias" value="30" />
+                  </Picker>
+                </View>
 
                 <TouchableOpacity
                   style={[

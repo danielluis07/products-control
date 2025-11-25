@@ -1,5 +1,3 @@
-// (Assumindo que está em components/LotModal.tsx)
-
 import { useAuth } from "@/context/auth"; // 2. Precisa do token
 import React, { useEffect, useState } from "react";
 import {
@@ -84,19 +82,42 @@ export default function LotModal({
   };
 
   const handleSaveAllLots = async () => {
-    if (lotes.length === 0) {
-      Alert.alert("Erro", "Adicione pelo menos um lote antes de salvar.");
+    // 1. Começamos com os lotes que já estão na lista
+    const finalLots = [...lotes];
+
+    // 2. Verificamos se há algo nos inputs que o usuário esqueceu de adicionar
+    if (quantity && expiryDate) {
+      // Validação rápida da data do input (igual à do handleAddLotToList)
+      if (!/^\d{2}\/\d{2}\/\d{4}$/.test(expiryDate)) {
+        Alert.alert(
+          "Erro",
+          "A data no campo de texto é inválida (DD/MM/AAAA)."
+        );
+        return;
+      }
+
+      // Adiciona o lote do input à lista final
+      finalLots.push({
+        id: Math.random().toString(),
+        quantity: quantity,
+        expiryDate: expiryDate,
+      });
+    }
+
+    // 3. Agora verificamos se a lista combinada está vazia
+    if (finalLots.length === 0) {
+      Alert.alert(
+        "Atenção",
+        "Preencha os campos ou adicione um lote à lista antes de salvar."
+      );
       return;
     }
 
     setIsSaving(true);
 
-    console.log("Salvando lotes:", lotes);
-
     try {
-      // Cria um array de 'promises' de fetch
-      const savePromises = lotes.map((lote) => {
-        // Converte a data para AAAA-MM-DD
+      // 4. Usamos 'finalLots' ao invés de 'lotes' aqui
+      const savePromises = finalLots.map((lote) => {
         const [day, month, year] = lote.expiryDate.split("/");
         const isoDate = `${year}-${month}-${day}`;
 
@@ -116,12 +137,8 @@ export default function LotModal({
         });
       });
 
-      // Executa todas as promises em paralelo
       const responses = await Promise.all(savePromises);
 
-      console.log("Respostas da API:", responses);
-
-      // Verifica se alguma falhou
       const failed = responses.filter((res) => !res.ok);
       if (failed.length > 0) {
         throw new Error(`${failed.length} lotes falharam ao salvar.`);
@@ -129,15 +146,18 @@ export default function LotModal({
 
       Alert.alert(
         "Sucesso!",
-        `${lotes.length} lote(s) de "${foundProduct?.name}" adicionados ao inventário.`
+        `${finalLots.length} lote(s) adicionados ao inventário.`
       );
-      onClose(); // Fecha o modal principal
+      onClose();
     } catch (error) {
       console.error(error);
-      Alert.alert("Não foi possível salvar os lotes.");
+      Alert.alert("Erro", "Não foi possível salvar os lotes.");
     } finally {
       setIsSaving(false);
     }
+  };
+  const removeLot = (id: string) => {
+    setLotes((prevLotes) => prevLotes.filter((lot) => lot.id !== id));
   };
 
   return (
@@ -199,6 +219,9 @@ export default function LotModal({
                 <View key={item.id} style={styles.lotItem}>
                   <Text>{item.quantity} unidades</Text>
                   <Text>Vence em: {item.expiryDate}</Text>
+                  <TouchableOpacity onPress={() => removeLot(item.id)}>
+                    <Text style={{ color: "red" }}>Remover</Text>
+                  </TouchableOpacity>
                 </View>
               ))}
 
