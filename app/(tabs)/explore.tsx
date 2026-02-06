@@ -9,28 +9,38 @@ import {
   useCameraPermissions,
 } from "expo-camera";
 import { useFocusEffect } from "expo-router";
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
-  Animated,
-  Dimensions,
-  Easing,
+  Pressable,
   StyleSheet,
   Text,
-  TouchableOpacity,
+  useWindowDimensions,
   View,
 } from "react-native";
+import Animated, {
+  cancelAnimation,
+  Easing,
+  useAnimatedStyle,
+  useSharedValue,
+  withRepeat,
+  withSequence,
+  withTiming,
+} from "react-native-reanimated";
 // Importação importante para iPhone
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-const { width } = Dimensions.get("window");
-
 export default function CameraScannerScreen() {
   const insets = useSafeAreaInsets(); // Hook para lidar com o Notch e a Barra Inferior
+  const { width } = useWindowDimensions(); // Responsive to screen changes
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
-  const animation = useRef(new Animated.Value(0)).current;
+  const scanLineY = useSharedValue(0);
+
+  // Compute dynamic marker dimensions
+  const MARKER_WIDTH = width * 0.8;
+  const MARKER_HEIGHT = Math.max(100, width * 0.3); // Scales with screen size
 
   const [isCreateModalVisible, setIsCreateModalVisible] = useState(false);
   const [scannedBarcode, setScannedBarcode] = useState<string | null>(null);
@@ -53,34 +63,34 @@ export default function CameraScannerScreen() {
   useFocusEffect(
     React.useCallback(() => {
       setScanned(false);
-    }, [])
+    }, []),
   );
 
   const startAnimation = () => {
-    animation.setValue(0);
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animation, {
-          toValue: 1,
+    scanLineY.value = withRepeat(
+      withSequence(
+        withTiming(MARKER_HEIGHT, {
           duration: 1500,
           easing: Easing.linear,
-          useNativeDriver: true,
         }),
-        Animated.timing(animation, {
-          toValue: 0,
+        withTiming(0, {
           duration: 1500,
           easing: Easing.linear,
-          useNativeDriver: true,
         }),
-      ])
-    ).start();
+      ),
+      -1, // infinite repeats
+    );
   };
+
+  const scanLineAnimatedStyle = useAnimatedStyle(() => ({
+    transform: [{ translateY: scanLineY.value }],
+  }));
 
   useEffect(() => {
     if (isScanning) {
       startAnimation();
     } else {
-      animation.stopAnimation();
+      cancelAnimation(scanLineY);
     }
   }, [isScanning]);
 
@@ -97,7 +107,7 @@ export default function CameraScannerScreen() {
   };
 
   const handleBarCodeScanned = async (
-    scanningResult: BarcodeScanningResult
+    scanningResult: BarcodeScanningResult,
   ) => {
     if (scanned || isLoadingProduct) return;
 
@@ -120,7 +130,7 @@ export default function CameraScannerScreen() {
     try {
       const response = await fetch(
         `${process.env.EXPO_PUBLIC_API_URL}/api/products?barcode=${barcode}`,
-        { headers: { Authorization: `Bearer ${token}` } }
+        { headers: { Authorization: `Bearer ${token}` } },
       );
       const data = await response.json();
 
@@ -170,24 +180,20 @@ export default function CameraScannerScreen() {
   if (!permission.granted) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={{ marginBottom: 20, textAlign: "center" }}>
+        <Text style={styles.permissionText}>
           Precisamos da permissão da câmera.
         </Text>
-        <TouchableOpacity
-          style={styles.permissionButton}
+        <Pressable
+          style={({ pressed }) => [
+            styles.permissionButton,
+            pressed && { opacity: 0.8 },
+          ]}
           onPress={requestPermission}>
-          <Text style={{ color: "#fff", fontWeight: "bold" }}>
-            Conceder Permissão
-          </Text>
-        </TouchableOpacity>
+          <Text style={styles.permissionButtonText}>Conceder Permissão</Text>
+        </Pressable>
       </View>
     );
   }
-
-  const translateY = animation.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, MARKER_HEIGHT],
-  });
 
   return (
     <View style={styles.container}>
@@ -212,29 +218,34 @@ export default function CameraScannerScreen() {
 
       {isScanning && (
         <View style={styles.overlayContainer}>
-          <View style={styles.markerContainer}>
+          <View
+            style={[
+              styles.markerContainer,
+              { width: MARKER_WIDTH, height: MARKER_HEIGHT },
+            ]}>
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
-            <Animated.View
-              style={[styles.scanLine, { transform: [{ translateY }] }]}
-            />
+            <Animated.View style={[styles.scanLine, scanLineAnimatedStyle]} />
           </View>
 
           <View
             style={[
               styles.bottomContainer,
-              { paddingBottom: insets.bottom + 20 }, // Ajuste dinâmico para iPhone
+              { paddingBottom: insets.bottom + 20 },
             ]}>
             <Text style={styles.overlayText}>
               Aponte para o código de barras
             </Text>
-            <TouchableOpacity
-              style={styles.manualButton}
+            <Pressable
+              style={({ pressed }) => [
+                styles.manualButton,
+                pressed && { opacity: 0.7 },
+              ]}
               onPress={() => setIsManualModalVisible(true)}>
               <Text style={styles.manualButtonText}>Digitar Manualmente</Text>
-            </TouchableOpacity>
+            </Pressable>
           </View>
         </View>
       )}
@@ -269,8 +280,6 @@ export default function CameraScannerScreen() {
   );
 }
 
-const MARKER_WIDTH = width * 0.8;
-const MARKER_HEIGHT = 120;
 const CORNER_SIZE = 30;
 const CORNER_THICKNESS = 4;
 
@@ -297,8 +306,6 @@ const styles = StyleSheet.create({
   },
   markerContainer: {
     marginTop: "45%",
-    width: MARKER_WIDTH,
-    height: MARKER_HEIGHT,
     position: "relative",
   },
   corner: {
@@ -364,5 +371,15 @@ const styles = StyleSheet.create({
     backgroundColor: "#007AFF",
     padding: 15,
     borderRadius: 10,
+  },
+  permissionText: {
+    marginBottom: 20,
+    textAlign: "center",
+    fontSize: 16,
+  },
+  permissionButtonText: {
+    color: "#fff",
+    fontWeight: "bold",
+    fontSize: 16,
   },
 });

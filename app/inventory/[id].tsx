@@ -66,7 +66,7 @@ export default function InventoryDetailScreen() {
           headers: {
             Authorization: `Bearer ${token}`,
           },
-        }
+        },
       );
 
       const data = await response.json();
@@ -90,7 +90,7 @@ export default function InventoryDetailScreen() {
   useFocusEffect(
     useCallback(() => {
       fetchDetails();
-    }, [fetchDetails])
+    }, [fetchDetails]),
   );
 
   // 3. Handler atualizado
@@ -178,7 +178,7 @@ export default function InventoryDetailScreen() {
           ListEmptyComponent={
             <Text style={styles.emptyText}>Nenhuma atividade registrada.</Text>
           }
-          contentContainerStyle={{ paddingBottom: 100 }}
+          contentContainerStyle={{ paddingBottom: insets.bottom + 80 }}
           renderItem={({ item: log }) => {
             // Lógica visual: Se for positivo, mostra verde e sinal de +
             const isPositive = log.quantityChange > 0;
@@ -196,17 +196,19 @@ export default function InventoryDetailScreen() {
                 <Text style={styles.logDetails}>
                   Quantidade:{" "}
                   <Text
-                    style={{
-                      fontWeight: "700",
-                      color: isPositive ? "#2E7D32" : "#D32F2F", // Verde ou Vermelho
-                    }}>
+                    style={[
+                      styles.logQuantity,
+                      isPositive
+                        ? styles.logQuantityPositive
+                        : styles.logQuantityNegative,
+                    ]}>
                     {isPositive ? "+" : ""}
                     {log.quantityChange}
                   </Text>
                 </Text>
                 <Text style={styles.logUser}>
                   Por:{" "}
-                  <Text style={{ fontWeight: "500" }}>
+                  <Text style={styles.logUserName}>
                     {log.userName || "Usuário"}
                   </Text>
                 </Text>
@@ -342,6 +344,18 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: "#555",
     marginTop: 2,
+  },
+  logUserName: {
+    fontWeight: "500",
+  },
+  logQuantity: {
+    fontWeight: "700",
+  },
+  logQuantityPositive: {
+    color: "#2E7D32",
+  },
+  logQuantityNegative: {
+    color: "#D32F2F",
   },
   emptyText: {
     textAlign: "center",

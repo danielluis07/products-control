@@ -61,7 +61,7 @@ export default function LotModal({
     } else if (cleaned.length > 4) {
       formatted = `${cleaned.slice(0, 2)}/${cleaned.slice(
         2,
-        4
+        4,
       )}/${cleaned.slice(4, 8)}`;
     }
     setExpiryDate(formatted);
@@ -135,6 +135,7 @@ export default function LotModal({
       visible={visible}
       transparent={true}
       animationType="slide"
+      statusBarTranslucent={true}
       onRequestClose={onClose}>
       {/* Ajuste: behavior condicional e remoção da View duplicada */}
       <KeyboardAvoidingView

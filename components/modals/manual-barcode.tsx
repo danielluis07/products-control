@@ -3,12 +3,13 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  Pressable,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 export default function ManualBarcodeModal({
   isManualModalVisible,
@@ -25,17 +26,23 @@ export default function ManualBarcodeModal({
   setManualBarcode: (code: string) => void;
   handleConfirmManualEntry: () => void;
 }) {
+  const insets = useSafeAreaInsets();
+
   return (
     <Modal
       visible={isManualModalVisible}
       transparent={true}
       animationType="slide"
+      statusBarTranslucent={true}
       onRequestClose={closeManualModal}>
       <KeyboardAvoidingView
-        behavior={Platform.OS === "ios" ? "padding" : "padding"}
-        style={styles.modalContainer} //  reutilizado
-      >
-        <View style={styles.modalContent}>
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}>
+        <View
+          style={[
+            styles.modalContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 10 },
+          ]}>
           {/* reutilizado */}
           <Text style={styles.modalTitle}>Digitação Manual</Text>
           {/* reutilizado */}
@@ -50,11 +57,11 @@ export default function ManualBarcodeModal({
             autoFocus={true} // Foca no input ao abrir
           />
           {/* Botão de Salvar (Confirmar) */}
-          <TouchableOpacity
-            style={[
-              styles.saveButton, // reutilizado
-              // Desabilita se estiver vazio OU se já estiver buscando
-              (!manualBarcode || isLoadingProduct) && styles.buttonDisabled, // reutilizado
+          <Pressable
+            style={({ pressed }) => [
+              styles.saveButton,
+              (!manualBarcode || isLoadingProduct) && styles.buttonDisabled,
+              pressed && { opacity: 0.8 },
             ]}
             onPress={handleConfirmManualEntry}
             disabled={!manualBarcode || isLoadingProduct}>
@@ -63,15 +70,17 @@ export default function ManualBarcodeModal({
             ) : (
               <Text style={styles.saveButtonText}>Confirmar</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
           {/* Botão de Cancelar */}
-          <TouchableOpacity
-            style={styles.cancelButton} // reutilizado
+          <Pressable
+            style={({ pressed }) => [
+              styles.cancelButton,
+              pressed && { opacity: 0.6 },
+            ]}
             onPress={closeManualModal}
             disabled={isLoadingProduct}>
             <Text style={styles.cancelButtonText}>Cancelar</Text>
-            {/* reutilizado */}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </KeyboardAvoidingView>
     </Modal>

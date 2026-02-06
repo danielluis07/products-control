@@ -4,13 +4,16 @@ import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
+  KeyboardAvoidingView,
   Modal,
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -35,6 +38,7 @@ export default function RemoveStockModal({
   onClose,
 }: RemoveStockModalProps) {
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
   const [quantity, setQuantity] = useState("");
   const [action, setAction] = useState<string>(actionOptions[0].value);
   const [isLoading, setIsLoading] = useState(false);
@@ -64,7 +68,7 @@ export default function RemoveStockModal({
     if (numQuantity > currentQuantity) {
       Alert.alert(
         "Erro",
-        `Quantidade inválida. Você só pode remover até ${currentQuantity} unidades.`
+        `Quantidade inválida. Você só pode remover até ${currentQuantity} unidades.`,
       );
       return;
     }
@@ -85,7 +89,7 @@ export default function RemoveStockModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       const data = await response.json();
@@ -109,8 +113,14 @@ export default function RemoveStockModal({
       animationType="slide"
       onRequestClose={() => onClose(false)}
       statusBarTranslucent={true}>
-      <View style={styles.modalContainer}>
-        <View style={styles.modalContent}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}>
+        <View
+          style={[
+            styles.modalContent,
+            { paddingBottom: Math.max(insets.bottom, 16) + 10 },
+          ]}>
           <Text style={styles.modalTitle}>Registrar Saída de Estoque</Text>
 
           <Text style={styles.label}>Motivo da Saída:</Text>
@@ -155,7 +165,7 @@ export default function RemoveStockModal({
             <Text style={styles.cancelButtonText}>Cancelar</Text>
           </TouchableOpacity>
         </View>
-      </View>
+      </KeyboardAvoidingView>
     </Modal>
   );
 }

@@ -83,7 +83,7 @@ export default function AdminClient() {
       setPage(1);
       setHasMore(true);
       fetchProducts(1, true);
-    }, [token, debouncedSearch, logout])
+    }, [token, debouncedSearch, logout]),
   );
 
   const handleLoadMore = () => {
@@ -154,7 +154,7 @@ export default function AdminClient() {
           keyExtractor={(item) => item.id}
           renderItem={({ item }) => (
             <TouchableOpacity style={styles.itemContainer}>
-              <View style={{ flex: 1, marginRight: 12 }}>
+              <View style={styles.itemLeft}>
                 <Text
                   style={styles.itemName}
                   numberOfLines={2}
@@ -210,7 +210,15 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 8,
     elevation: 1,
-    overflow: "hidden", // Adiciona esta linha
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    overflow: "hidden",
+  },
+  itemLeft: {
+    flex: 1,
+    marginRight: 12,
   },
   itemName: {
     fontSize: 16,
@@ -245,6 +253,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 10,
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     paddingHorizontal: 16,
   },
   searchIcon: {

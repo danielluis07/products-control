@@ -54,7 +54,7 @@ export default function UserClient() {
     setError(null);
 
     const url = new URL(
-      `${process.env.EXPO_PUBLIC_API_URL}/api/inventory-items`
+      `${process.env.EXPO_PUBLIC_API_URL}/api/inventory-items`,
     );
     url.searchParams.append("page", pageNum.toString());
     url.searchParams.append("limit", "20");
@@ -105,7 +105,7 @@ export default function UserClient() {
       // Limpa seleção ao voltar para a tela
       setSelectionMode(false);
       setSelectedItems(new Set());
-    }, [token, debouncedSearch, logout])
+    }, [token, debouncedSearch, logout]),
   );
 
   // Função chamada quando o usuário chega ao fim da lista
@@ -183,7 +183,7 @@ export default function UserClient() {
                   body: JSON.stringify({
                     ids: itemsToDelete,
                   }),
-                }
+                },
               );
 
               const result = await response.json();
@@ -195,13 +195,13 @@ export default function UserClient() {
                   logout();
                 }
                 throw new Error(
-                  result.message || "Erro ao deletar itens do inventário"
+                  result.message || "Erro ao deletar itens do inventário",
                 );
               }
 
               // Remove os itens deletados da lista local
               setItems((prev) =>
-                prev.filter((item) => !selectedItems.has(item.id))
+                prev.filter((item) => !selectedItems.has(item.id)),
               );
 
               // Limpa a seleção
@@ -214,7 +214,7 @@ export default function UserClient() {
                   itemsToDelete.length === 1
                     ? "item removido"
                     : "itens removidos"
-                } com sucesso!`
+                } com sucesso!`,
               );
             } catch (error) {
               setIsDeleting(false);
@@ -223,12 +223,12 @@ export default function UserClient() {
                 "Erro",
                 error instanceof Error
                   ? error.message
-                  : "Não foi possível remover os itens. Tente novamente."
+                  : "Não foi possível remover os itens. Tente novamente.",
               );
             }
           },
         },
-      ]
+      ],
     );
   };
 
@@ -437,6 +437,10 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
     borderRadius: 8,
     elevation: 1,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
   },
   itemContainerSelected: {
     backgroundColor: "#E3F2FD",
@@ -455,7 +459,7 @@ const styles = StyleSheet.create({
   itemName: {
     fontSize: 16,
     fontWeight: "bold",
-    maxWidth: 200,
+    flexShrink: 1,
   },
   itemQuantity: {
     fontSize: 14,
@@ -480,6 +484,10 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 10,
     elevation: 2,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
     paddingHorizontal: 16,
   },
   searchIcon: {

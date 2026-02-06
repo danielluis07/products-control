@@ -6,13 +6,14 @@ import {
   Alert,
   KeyboardAvoidingView,
   Modal,
-  Platform, // Import Platform for better Picker styling/layout
+  Platform,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
@@ -41,6 +42,7 @@ export default function AdjustStockModal({
   onClose,
 }: AdjustStockModalProps) {
   const { token } = useAuth();
+  const insets = useSafeAreaInsets();
   const [quantity, setQuantity] = useState("");
   // Definir "sold" (Venda) como padrão
   const [action, setAction] = useState<string>(actionOptions[0].value);
@@ -74,7 +76,7 @@ export default function AdjustStockModal({
     if (!isAddition && numQuantity > currentQuantity) {
       Alert.alert(
         "Erro de Estoque",
-        `Quantidade inválida. Você só pode remover até ${currentQuantity} unidades.`
+        `Quantidade inválida. Você só pode remover até ${currentQuantity} unidades.`,
       );
       return;
     }
@@ -95,7 +97,7 @@ export default function AdjustStockModal({
             Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify(body),
-        }
+        },
       );
 
       const data = await response.json();
@@ -108,7 +110,7 @@ export default function AdjustStockModal({
     } catch (error) {
       Alert.alert(
         "Erro",
-        (error as Error).message || "Não foi possível registrar o ajuste."
+        (error as Error).message || "Não foi possível registrar o ajuste.",
       );
     } finally {
       setIsLoading(false);
@@ -138,7 +140,11 @@ export default function AdjustStockModal({
             style={StyleSheet.absoluteFill}
             onPress={() => onClose(false)}
           />
-          <View style={styles.modalContent}>
+          <View
+            style={[
+              styles.modalContent,
+              { paddingBottom: Math.max(insets.bottom, 16) + 10 },
+            ]}>
             {/* MUDANÇA 7: Textos da UI atualizados */}
             <Text style={styles.modalTitle}>Ajustar Estoque</Text>
 
@@ -204,8 +210,6 @@ const styles = StyleSheet.create({
     backgroundColor: "white",
     paddingHorizontal: 22,
     paddingTop: 22,
-    // Garantir padding inferior seguro
-    paddingBottom: Platform.OS === "ios" ? 34 : 24,
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
   },

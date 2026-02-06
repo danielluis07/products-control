@@ -6,11 +6,11 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
+  Pressable,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableOpacity,
   View,
 } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
@@ -98,7 +98,7 @@ export default function LoginScreen() {
             Authorization: `Bearer ${jwtToken}`,
             "ngrok-skip-browser-warning": "true",
           },
-        }
+        },
       );
 
       const session = await sessionResponse.json();
@@ -185,22 +185,28 @@ export default function LoginScreen() {
                 returnKeyType="done"
                 onSubmitEditing={handleLogin}
               />
-              <TouchableOpacity
-                style={styles.eyeButton}
+              <Pressable
+                style={({ pressed }) => [
+                  styles.eyeButton,
+                  pressed && { opacity: 0.6 },
+                ]}
                 onPress={() => setShowPassword(!showPassword)}
                 disabled={loading}>
                 <Text style={styles.eyeIcon}>{showPassword ? "👁️" : "👁️‍🗨️"}</Text>
-              </TouchableOpacity>
+              </Pressable>
             </View>
             {passwordError ? (
               <Text style={styles.errorText}>{passwordError}</Text>
             ) : null}
           </View>
 
-          <TouchableOpacity
-            style={[
+          <Pressable
+            style={({ pressed }) => [
               styles.button,
               (!isFormValid || loading) && styles.buttonDisabled,
+              pressed &&
+                isFormValid &&
+                !loading && { opacity: 0.9, transform: [{ scale: 0.98 }] },
             ]}
             onPress={handleLogin}
             disabled={loading || !isFormValid}>
@@ -209,7 +215,7 @@ export default function LoginScreen() {
             ) : (
               <Text style={styles.buttonText}>Entrar</Text>
             )}
-          </TouchableOpacity>
+          </Pressable>
         </View>
       </ScrollView>
     </KeyboardAvoidingView>
@@ -238,6 +244,8 @@ const styles = StyleSheet.create({
     paddingVertical: 16,
     fontSize: 16,
     color: "#212529",
+    // Android elevation for subtle depth
+    elevation: 1,
   },
   inputError: { borderColor: "#ff3b30" },
   passwordContainer: {
