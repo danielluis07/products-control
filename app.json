@@ -9,7 +9,11 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.danielluis07.productscontrol",
+      "infoPlist": {
+        "NSCameraUsageDescription": "O FreshTrack precisa de acesso à câmera para ler os códigos de barras dos produtos e cadastrá-los no sistema."
+      }
     },
     "android": {
       "edgeToEdgeEnabled": true,
@@ -36,7 +40,13 @@
         }
       ],
       "expo-sqlite",
-      "expo-secure-store"
+      "expo-secure-store",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "O FreshTrack precisa de acesso à câmera para ler códigos de barras."
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true,

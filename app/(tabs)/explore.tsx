@@ -1,3 +1,4 @@
+// app/(tabs)/explore.tsx
 import CreateProductModal from "@/components/modals/create-product";
 import LotModal from "@/components/modals/lot";
 import ManualBarcodeModal from "@/components/modals/manual-barcode";
@@ -13,7 +14,6 @@ import {
   ActivityIndicator,
   Alert,
   Animated,
-  Button,
   Dimensions,
   Easing,
   StyleSheet,
@@ -21,10 +21,13 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// Importação importante para iPhone
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const { width } = Dimensions.get("window");
 
 export default function CameraScannerScreen() {
+  const insets = useSafeAreaInsets(); // Hook para lidar com o Notch e a Barra Inferior
   const [permission, requestPermission] = useCameraPermissions();
   const [scanned, setScanned] = useState(false);
   const animation = useRef(new Animated.Value(0)).current;
@@ -35,41 +38,26 @@ export default function CameraScannerScreen() {
   const [isManualModalVisible, setIsManualModalVisible] = useState(false);
   const [manualBarcode, setManualBarcode] = useState("");
 
-  const { token, user } = useAuth(); // Pega o token para a API
+  const { token, user } = useAuth();
   const [isLoadingProduct, setIsLoadingProduct] = useState(false);
   const [foundProduct, setFoundProduct] = useState<Product | null>(null);
 
   const isScanning = !foundProduct && !isCreateModalVisible;
 
   useEffect(() => {
-    if (!permission?.granted) requestPermission();
-  }, [permission, requestPermission]);
+    if (permission && !permission.granted && permission.canAskAgain) {
+      requestPermission();
+    }
+  }, [permission]);
 
-  useFocusEffect(() => {
-    setScanned(false);
-  });
-
-  useEffect(() => {
-    // Animação da linha branca
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(animation, {
-          toValue: 1,
-          duration: 1500,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-        Animated.timing(animation, {
-          toValue: 0,
-          duration: 1500,
-          easing: Easing.linear,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, []);
+  useFocusEffect(
+    React.useCallback(() => {
+      setScanned(false);
+    }, [])
+  );
 
   const startAnimation = () => {
+    animation.setValue(0);
     Animated.loop(
       Animated.sequence([
         Animated.timing(animation, {
@@ -90,12 +78,11 @@ export default function CameraScannerScreen() {
 
   useEffect(() => {
     if (isScanning) {
-      animation.setValue(0); // Reseta a posição para o topo
-      startAnimation(); // Inicia o loop
+      startAnimation();
     } else {
-      animation.stopAnimation(); // Para o loop se o modal abrir (economiza bateria)
+      animation.stopAnimation();
     }
-  }, [isScanning]); // <-- Isso garante que rode sempre que a tela do scanner voltar
+  }, [isScanning]);
 
   const closeLotModal = () => {
     setFoundProduct(null);
@@ -114,16 +101,18 @@ export default function CameraScannerScreen() {
   ) => {
     if (scanned || isLoadingProduct) return;
 
-    const barcode = scanningResult.data;
+    let barcode = scanningResult.data;
 
-    // --- ALTERAÇÃO AQUI ---
-    // Filtro de Ruído: Ignora códigos que não tenham tamanho de EAN/UPC padrão.
-    // Isso evita ler "pedaços" de códigos ou interpretações erradas de texturas.
-    // EAN-8 (8 dígitos), UPC-A (12 dígitos), EAN-13 (13 dígitos).
-    if (barcode.length < 8 || barcode.length > 13) {
-      return;
+    // --- CORREÇÃO PARA IOS: Tratamento de UPC-A / EAN-13 ---
+    // O iOS frequentemente adiciona um '0' na frente de códigos de 12 dígitos.
+    // Se o código tem 13 dígitos e começa com 0, e seu banco usa o padrão de 12,
+    // removemos o zero para manter a consistência entre Android e iOS.
+    if (barcode.length === 13 && barcode.startsWith("0")) {
+      barcode = barcode.substring(1);
     }
-    // ----------------------
+
+    // Filtro de Ruído atualizado
+    if (barcode.length < 8 || barcode.length > 13) return;
 
     setScanned(true);
     setIsLoadingProduct(true);
@@ -139,111 +128,76 @@ export default function CameraScannerScreen() {
         if (response.status === 404) {
           setScannedBarcode(barcode);
           setIsCreateModalVisible(true);
-        } else if (response.status === 409) {
-          Alert.alert(
-            "Erro",
-            data.message || "Este código de barras já foi cadastrado."
-          );
-          closeLotModal();
         } else {
           Alert.alert("Erro", data.message || "Erro ao buscar produto.");
-          closeLotModal();
+          setScanned(false);
+          setIsLoadingProduct(false);
         }
       } else {
         if (user?.role === "admin") {
-          Alert.alert(
-            "Produto Já Cadastrado",
-            `O produto "${data.data.name}" já existe no catálogo.`
-          );
+          Alert.alert("Sucesso", `Produto "${data.data.name}" já cadastrado.`);
           closeLotModal();
         } else {
           setFoundProduct(data.data);
         }
       }
     } catch (error) {
-      console.error(error);
       Alert.alert("Erro de Conexão", "Não foi possível conectar à API.");
-      setIsLoadingProduct(false);
       setScanned(false);
+      setIsLoadingProduct(false);
     }
   };
 
   const handleProductCreated = (newProduct: Product) => {
-    // 1. Fecha o modal de criação primeiro
     setIsCreateModalVisible(false);
-
-    // 2. Decide o fluxo com base no cargo
     if (user?.role === "admin") {
-      // ADMIN: O fluxo acaba aqui, então PRECISA do aviso visual
-      Alert.alert(
-        "Sucesso",
-        `Produto "${newProduct.name}" cadastrado no catálogo.`
-      );
+      Alert.alert("Sucesso", `Produto "${newProduct.name}" cadastrado.`);
       setScanned(false);
     } else {
-      // GERENTE: O fluxo continua.
-      // A abertura imediata do próximo modal já é a confirmação de sucesso.
-
-      // Pequeno delay (500ms) para suavizar a transição entre modais
       setTimeout(() => {
         setFoundProduct(newProduct);
-        // Nota: Não setamos setScanned(false) ainda, pois ele está "trabalhando" no produto
       }, 500);
     }
   };
 
-  const handleManualEntryPress = () => {
-    setIsManualModalVisible(true);
-  };
-
-  const handleConfirmManualEntry = () => {
-    if (manualBarcode) {
-      // Simula o resultado do scanner e chama a mesma função
-      handleBarCodeScanned({
-        data: manualBarcode,
-        type: "manual",
-      } as BarcodeScanningResult);
-    }
-    // Fecha o modal e limpa o estado
-    setIsManualModalVisible(false);
-    setManualBarcode("");
-  };
-
-  if (!permission) {
+  if (!permission)
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" />
       </View>
     );
-  }
 
   if (!permission.granted) {
     return (
       <View style={styles.centerContainer}>
-        <Text style={{ margin: 10, textAlign: "center" }}>
-          Precisamos da sua permissão para usar a câmera.
+        <Text style={{ marginBottom: 20, textAlign: "center" }}>
+          Precisamos da permissão da câmera.
         </Text>
-        <Button onPress={requestPermission} title="Conceder Permissão" />
+        <TouchableOpacity
+          style={styles.permissionButton}
+          onPress={requestPermission}>
+          <Text style={{ color: "#fff", fontWeight: "bold" }}>
+            Conceder Permissão
+          </Text>
+        </TouchableOpacity>
       </View>
     );
   }
 
   const translateY = animation.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 100],
+    outputRange: [0, MARKER_HEIGHT],
   });
 
   return (
     <View style={styles.container}>
-      {!foundProduct && !isCreateModalVisible && (
+      {isScanning && (
         <CameraView
           style={StyleSheet.absoluteFillObject}
           onBarcodeScanned={scanned ? undefined : handleBarCodeScanned}
           barcodeScannerSettings={{
-            // --- ALTERAÇÃO AQUI ---
-            // Removido 'code128' e 'qr' para evitar leituras falsas em
-            // texturas de embalagens amassadas (como pipoca).
-            barcodeTypes: ["ean13", "ean8"],
+            // Adicionado upc_a que é essencial para iPhone ler códigos de 12 dígitos
+            barcodeTypes: ["ean13", "ean8", "upc_a"],
           }}
           facing="back"
         />
@@ -256,33 +210,29 @@ export default function CameraScannerScreen() {
         </View>
       )}
 
-      {!foundProduct && !isCreateModalVisible && (
+      {isScanning && (
         <View style={styles.overlayContainer}>
           <View style={styles.markerContainer}>
-            {/* Cantos do marcador */}
             <View style={[styles.corner, styles.topLeft]} />
             <View style={[styles.corner, styles.topRight]} />
             <View style={[styles.corner, styles.bottomLeft]} />
             <View style={[styles.corner, styles.bottomRight]} />
-
-            {/* Linha animada branca */}
             <Animated.View
-              style={[
-                styles.scanLine,
-                {
-                  transform: [{ translateY }],
-                },
-              ]}
+              style={[styles.scanLine, { transform: [{ translateY }] }]}
             />
           </View>
 
-          <View style={styles.bottomContainer}>
+          <View
+            style={[
+              styles.bottomContainer,
+              { paddingBottom: insets.bottom + 20 }, // Ajuste dinâmico para iPhone
+            ]}>
             <Text style={styles.overlayText}>
-              Aponte a câmera para o código de barras
+              Aponte para o código de barras
             </Text>
             <TouchableOpacity
               style={styles.manualButton}
-              onPress={handleManualEntryPress}>
+              onPress={() => setIsManualModalVisible(true)}>
               <Text style={styles.manualButtonText}>Digitar Manualmente</Text>
             </TouchableOpacity>
           </View>
@@ -294,19 +244,24 @@ export default function CameraScannerScreen() {
         foundProduct={foundProduct}
         onClose={closeLotModal}
       />
-
       <CreateProductModal
         visible={isCreateModalVisible}
         scannedBarcode={scannedBarcode}
         onClose={closeCreateModal}
         onCreateSuccess={handleProductCreated}
       />
-
       <ManualBarcodeModal
         isManualModalVisible={isManualModalVisible}
         manualBarcode={manualBarcode}
         setManualBarcode={setManualBarcode}
-        handleConfirmManualEntry={handleConfirmManualEntry}
+        handleConfirmManualEntry={() => {
+          handleBarCodeScanned({
+            data: manualBarcode,
+            type: "manual",
+          } as BarcodeScanningResult);
+          setIsManualModalVisible(false);
+          setManualBarcode("");
+        }}
         closeManualModal={() => setIsManualModalVisible(false)}
         isLoadingProduct={isLoadingProduct}
       />
@@ -315,113 +270,99 @@ export default function CameraScannerScreen() {
 }
 
 const MARKER_WIDTH = width * 0.8;
-const MARKER_HEIGHT = 100;
-const CORNER_SIZE = 40;
-const CORNER_THICKNESS = 3;
+const MARKER_HEIGHT = 120;
+const CORNER_SIZE = 30;
+const CORNER_THICKNESS = 4;
 
 const styles = StyleSheet.create({
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.6)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingText: {
-    color: "#fff",
-    fontSize: 16,
-    marginTop: 10,
-  },
-  container: {
-    flex: 1,
-  },
+  container: { flex: 1, backgroundColor: "#000" },
   centerContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     padding: 20,
   },
+  loadingOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0,0,0,0.7)",
+    justifyContent: "center",
+    alignItems: "center",
+    zIndex: 10,
+  },
+  loadingText: { color: "#fff", fontSize: 16, marginTop: 10 },
   overlayContainer: {
     ...StyleSheet.absoluteFillObject,
     justifyContent: "space-between",
     alignItems: "center",
   },
   markerContainer: {
-    marginTop: "40%",
+    marginTop: "45%",
     width: MARKER_WIDTH,
     height: MARKER_HEIGHT,
-    overflow: "hidden",
-    backgroundColor: "rgba(0,0,0,0.15)",
     position: "relative",
   },
   corner: {
     position: "absolute",
     width: CORNER_SIZE,
     height: CORNER_SIZE,
-    borderColor: "rgba(255,255,255,0.9)",
+    borderColor: "#fff",
   },
   topLeft: {
     top: 0,
     left: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderTopLeftRadius: 12,
+    borderTopLeftRadius: 15,
   },
   topRight: {
     top: 0,
     right: 0,
     borderTopWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderTopRightRadius: 12,
+    borderTopRightRadius: 15,
   },
   bottomLeft: {
     bottom: 0,
     left: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderLeftWidth: CORNER_THICKNESS,
-    borderBottomLeftRadius: 12,
+    borderBottomLeftRadius: 15,
   },
   bottomRight: {
     bottom: 0,
     right: 0,
     borderBottomWidth: CORNER_THICKNESS,
     borderRightWidth: CORNER_THICKNESS,
-    borderBottomRightRadius: 12,
+    borderBottomRightRadius: 15,
   },
   scanLine: {
     position: "absolute",
-    top: 0,
-    left: 0,
     width: "100%",
-    height: 2,
-    backgroundColor: "white",
-    opacity: 0.9,
+    height: 3,
+    backgroundColor: "#fff",
+    opacity: 0.8,
   },
   bottomContainer: {
-    backgroundColor: "rgba(0,0,0,0.5)",
+    backgroundColor: "rgba(0,0,0,0.6)",
     width: "100%",
     paddingVertical: 20,
     alignItems: "center",
-    // rounded corners at the top
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
   },
-  overlayText: {
-    color: "white",
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 15,
-  },
+  overlayText: { color: "white", fontSize: 15, marginBottom: 15, opacity: 0.9 },
   manualButton: {
     paddingVertical: 12,
-    paddingHorizontal: 25,
-    backgroundColor: "rgba(255, 255, 255, 0.15)",
-    borderRadius: 8,
+    paddingHorizontal: 30,
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    borderRadius: 12,
     borderWidth: 1,
     borderColor: "rgba(255, 255, 255, 0.3)",
   },
-  manualButtonText: {
-    color: "white",
-    fontWeight: "bold",
-    fontSize: 14,
+  manualButtonText: { color: "white", fontWeight: "600", fontSize: 14 },
+  permissionButton: {
+    backgroundColor: "#007AFF",
+    padding: 15,
+    borderRadius: 10,
   },
 });

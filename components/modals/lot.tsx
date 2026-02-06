@@ -1,10 +1,12 @@
-import { useAuth } from "@/context/auth"; // 2. Precisa do token
+// components/modals/lot.tsx
+import { useAuth } from "@/context/auth";
 import React, { useEffect, useState } from "react";
 import {
   ActivityIndicator,
   Alert,
   KeyboardAvoidingView,
   Modal,
+  Platform,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,12 +14,14 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+// Essencial para iPhones com Notch/Home Indicator
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
 interface LotModalProps {
   visible: boolean;
-  foundProduct: Product | null;
+  foundProduct: any | null; // Alterado para any ou sua Interface Product
   onClose: () => void;
 }
 
@@ -33,6 +37,7 @@ export default function LotModal({
   onClose,
 }: LotModalProps) {
   const { token } = useAuth();
+  const insets = useSafeAreaInsets(); // Pega as margens seguras do iPhone
 
   const [lotes, setLotes] = useState<BatchLot[]>([]);
   const [quantity, setQuantity] = useState("");
@@ -71,93 +76,58 @@ export default function LotModal({
       Alert.alert("Erro", "Formato da data inválido. Use DD/MM/AAAA.");
       return;
     }
-
     setLotes([
       ...lotes,
       { id: Math.random().toString(), quantity, expiryDate },
     ]);
-
     setQuantity("");
     setExpiryDate("");
   };
 
   const handleSaveAllLots = async () => {
-    // 1. Começamos com os lotes que já estão na lista
     const finalLots = [...lotes];
-
-    // 2. Verificamos se há algo nos inputs que o usuário esqueceu de adicionar
     if (quantity && expiryDate) {
-      // Validação rápida da data do input (igual à do handleAddLotToList)
       if (!/^\d{2}\/\d{2}\/\d{4}$/.test(expiryDate)) {
-        Alert.alert(
-          "Erro",
-          "A data no campo de texto é inválida (DD/MM/AAAA)."
-        );
+        Alert.alert("Erro", "A data no campo de texto é inválida.");
         return;
       }
-
-      // Adiciona o lote do input à lista final
-      finalLots.push({
-        id: Math.random().toString(),
-        quantity: quantity,
-        expiryDate: expiryDate,
-      });
+      finalLots.push({ id: Math.random().toString(), quantity, expiryDate });
     }
 
-    // 3. Agora verificamos se a lista combinada está vazia
     if (finalLots.length === 0) {
-      Alert.alert(
-        "Atenção",
-        "Preencha os campos ou adicione um lote à lista antes de salvar."
-      );
+      Alert.alert("Atenção", "Preencha os campos ou adicione um lote.");
       return;
     }
 
     setIsSaving(true);
-
     try {
-      // 4. Usamos 'finalLots' ao invés de 'lotes' aqui
       const savePromises = finalLots.map((lote) => {
         const [day, month, year] = lote.expiryDate.split("/");
-        const isoDate = `${year}-${month}-${day}`;
-
-        const body = {
-          productId: foundProduct!.id,
-          initialQuantity: parseInt(lote.quantity, 10),
-          expiryDate: isoDate,
-        };
-
         return fetch(`${API_BASE_URL}/api/inventory-items`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify(body),
+          body: JSON.stringify({
+            productId: foundProduct!.id,
+            initialQuantity: parseInt(lote.quantity, 10),
+            expiryDate: `${year}-${month}-${day}`,
+          }),
         });
       });
 
       const responses = await Promise.all(savePromises);
+      if (responses.some((res) => !res.ok))
+        throw new Error("Erro em alguns lotes.");
 
-      const failed = responses.filter((res) => !res.ok);
-      if (failed.length > 0) {
-        throw new Error(`${failed.length} lotes falharam ao salvar.`);
-      }
-
-      Alert.alert(
-        "Sucesso!",
-        `${finalLots.length} lote(s) adicionados ao inventário.`
-      );
+      Alert.alert("Sucesso!", `${finalLots.length} lote(s) adicionados.`);
       onClose();
     } catch (error) {
-      console.error(error);
       Alert.alert("Erro", "Não foi possível salvar os lotes.");
     } finally {
       setIsSaving(false);
     }
-  };
-  const removeLot = (id: string) => {
-    setLotes((prevLotes) => prevLotes.filter((lot) => lot.id !== id));
   };
 
   return (
@@ -166,86 +136,92 @@ export default function LotModal({
       transparent={true}
       animationType="slide"
       onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior="padding" style={styles.modalContainer}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Adicionar Lotes (Em Lote)</Text>
+      {/* Ajuste: behavior condicional e remoção da View duplicada */}
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}>
+        <View
+          style={[
+            styles.modalContent,
+            { paddingBottom: insets.bottom + 20 }, // Garante que o botão não fique sob a barra do iPhone
+          ]}>
+          {/* Indicador visual de "puxar" comum no iOS */}
+          <View style={styles.grabber} />
 
-            <ScrollView
-              showsVerticalScrollIndicator={false}
-              keyboardShouldPersistTaps="handled"
-              contentContainerStyle={{ paddingBottom: 20 }}>
-              <Text style={styles.productName}>{foundProduct?.name}</Text>
-              <Text style={styles.productBarcode}>
-                Cód: {foundProduct?.barcode}
-              </Text>
+          <Text style={styles.modalTitle}>Adicionar Lotes</Text>
 
-              {/* Inputs */}
-              <Text style={styles.label}>Quantidade:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="Ex: 50"
-                keyboardType="number-pad"
-                value={quantity}
-                onChangeText={setQuantity}
-                editable={!isSaving}
-              />
-              <Text style={styles.label}>Data de Validade:</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="DD/MM/AAAA"
-                value={expiryDate}
-                onChangeText={handleDateChange}
-                keyboardType="number-pad"
-                editable={!isSaving}
-              />
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            contentContainerStyle={{ paddingBottom: 10 }}>
+            <Text style={styles.productName}>{foundProduct?.name}</Text>
+            <Text style={styles.productBarcode}>
+              Cód: {foundProduct?.barcode}
+            </Text>
 
-              <TouchableOpacity
-                style={[styles.addButton, isSaving && styles.buttonDisabled]}
-                onPress={handleAddLotToList}
-                disabled={isSaving}>
-                <Text style={styles.addButtonText}>
-                  + Adicionar Lote à Lista
+            <Text style={styles.label}>Quantidade:</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="Ex: 50"
+              keyboardType="number-pad"
+              value={quantity}
+              onChangeText={setQuantity}
+              editable={!isSaving}
+            />
+
+            <Text style={styles.label}>Data de Validade:</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="DD/MM/AAAA"
+              value={expiryDate}
+              onChangeText={handleDateChange}
+              keyboardType="number-pad"
+              editable={!isSaving}
+            />
+
+            <TouchableOpacity
+              style={[styles.addButton, isSaving && styles.buttonDisabled]}
+              onPress={handleAddLotToList}
+              disabled={isSaving}>
+              <Text style={styles.addButtonText}>+ Adicionar Lote à Lista</Text>
+            </TouchableOpacity>
+
+            {lotes.map((item) => (
+              <View key={item.id} style={styles.lotItem}>
+                <Text>
+                  {item.quantity} un. | {item.expiryDate}
                 </Text>
-              </TouchableOpacity>
-
-              {/* Lista de Lotes */}
-              {lotes.length > 0 && (
-                <Text style={styles.listTitle}>Lotes a Salvar:</Text>
-              )}
-
-              {/* SUBSTITUA a FlatList por um map simples */}
-              {lotes.map((item) => (
-                <View key={item.id} style={styles.lotItem}>
-                  <Text>{item.quantity} unidades</Text>
-                  <Text>Vence em: {item.expiryDate}</Text>
-                  <TouchableOpacity onPress={() => removeLot(item.id)}>
-                    <Text style={{ color: "red" }}>Remover</Text>
-                  </TouchableOpacity>
-                </View>
-              ))}
-
-              {/* Botões Finais */}
-              <TouchableOpacity
-                style={[styles.saveButton, isSaving && styles.buttonDisabled]}
-                onPress={handleSaveAllLots}
-                disabled={isSaving}>
-                {isSaving ? (
-                  <ActivityIndicator color="#fff" />
-                ) : (
-                  <Text style={styles.saveButtonText}>
-                    Salvar {lotes.length > 0 ? `(${lotes.length})` : ""} Lotes
+                <TouchableOpacity
+                  onPress={() =>
+                    setLotes(lotes.filter((l) => l.id !== item.id))
+                  }>
+                  <Text style={{ color: "red", fontWeight: "bold" }}>
+                    Remover
                   </Text>
-                )}
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={styles.cancelButton}
-                onPress={onClose}
-                disabled={isSaving}>
-                <Text style={styles.cancelButtonText}>Cancelar</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
+                </TouchableOpacity>
+              </View>
+            ))}
+
+            <TouchableOpacity
+              style={[styles.saveButton, isSaving && styles.buttonDisabled]}
+              onPress={handleSaveAllLots}
+              disabled={isSaving}>
+              {isSaving ? (
+                <ActivityIndicator color="#fff" />
+              ) : (
+                <Text style={styles.saveButtonText}>
+                  Salvar {lotes.length > 0 ? `(${lotes.length})` : ""} Lotes
+                </Text>
+              )}
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.cancelButton}
+              onPress={onClose}
+              disabled={isSaving}>
+              <Text style={styles.cancelButtonText}>Cancelar</Text>
+            </TouchableOpacity>
+          </ScrollView>
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -255,14 +231,24 @@ export default function LotModal({
 const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
-    justifyContent: "flex-end",
+    justifyContent: "flex-end", // Alinha o modal na base da tela
     backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  grabber: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#ccc",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 10,
   },
   modalContent: {
     backgroundColor: "white",
-    padding: 22,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    maxHeight: "90%", // Evita que o modal cubra a tela inteira se houver muitos lotes
   },
   modalTitle: {
     fontSize: 20,
@@ -270,32 +256,23 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     textAlign: "center",
   },
-  productName: {
-    fontSize: 18,
-    fontWeight: "600",
-    textAlign: "center",
-  },
+  productName: { fontSize: 18, fontWeight: "600", textAlign: "center" },
   productBarcode: {
     fontSize: 14,
     color: "#666",
     textAlign: "center",
     marginBottom: 20,
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 6,
-  },
+  label: { fontSize: 14, fontWeight: "bold", color: "#333", marginBottom: 6 },
   input: {
-    backgroundColor: "#f0f0f0",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: "#f2f2f2",
+    padding: 14,
+    borderRadius: 10,
     fontSize: 16,
     marginBottom: 15,
   },
   addButton: {
-    backgroundColor: "#EBF5FF", // Um azul claro
+    backgroundColor: "#EBF5FF",
     padding: 12,
     borderRadius: 10,
     alignItems: "center",
@@ -303,45 +280,24 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: "#007AFF",
   },
-  addButtonText: {
-    color: "#007AFF",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  listTitle: {
-    fontSize: 16,
-    fontWeight: "bold",
-    marginBottom: 5,
-  },
+  addButtonText: { color: "#007AFF", fontSize: 16, fontWeight: "bold" },
   lotItem: {
     flexDirection: "row",
     justifyContent: "space-between",
-    padding: 10,
+    padding: 12,
     backgroundColor: "#f9f9f9",
-    borderRadius: 5,
-    marginBottom: 5,
+    borderRadius: 8,
+    marginBottom: 8,
   },
   saveButton: {
     backgroundColor: "#007AFF",
-    padding: 15,
-    borderRadius: 10,
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
-    marginBottom: 10,
+    marginTop: 10,
   },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
-  },
-  cancelButton: {
-    padding: 10,
-    alignItems: "center",
-  },
-  cancelButtonText: {
-    color: "#007AFF",
-    fontSize: 16,
-  },
-  buttonDisabled: {
-    backgroundColor: "#aaa",
-  },
+  saveButtonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  cancelButton: { padding: 15, alignItems: "center" },
+  cancelButtonText: { color: "#007AFF", fontSize: 16, fontWeight: "500" },
+  buttonDisabled: { backgroundColor: "#ccc", borderColor: "#aaa" },
 });

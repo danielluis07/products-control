@@ -1,4 +1,5 @@
-import { useAuth } from "@/context/auth"; // 1. Precisa do hook de autenticação
+// components/modals/create-product.tsx
+import { useAuth } from "@/context/auth";
 import { Picker } from "@react-native-picker/picker";
 import React, { useEffect, useState } from "react";
 import {
@@ -7,26 +8,22 @@ import {
   KeyboardAvoidingView,
   Modal,
   Platform,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
   View,
 } from "react-native";
+import { useSafeAreaInsets } from "react-native-safe-area-context";
 
-// 2. Mova os tipos e a URL para cá
-const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL; // <<-- ATUALIZE AQUI
-type Category = {
-  id: string;
-  name: string;
-};
+const API_BASE_URL = process.env.EXPO_PUBLIC_API_URL;
 
-// 3. Interface de Props simplificada
 interface CreateProductModalProps {
   visible: boolean;
   scannedBarcode: string | null;
   onClose: () => void;
-  onCreateSuccess: (product: Product) => void;
+  onCreateSuccess: (product: any) => void;
 }
 
 export default function CreateProductModal({
@@ -36,93 +33,67 @@ export default function CreateProductModal({
   onCreateSuccess,
 }: CreateProductModalProps) {
   const { token } = useAuth();
-  const [categories, setCategories] = useState<Category[]>([]);
+  const insets = useSafeAreaInsets();
+
+  const [categories, setCategories] = useState<any[]>([]);
   const [isLoadingCategories, setIsLoadingCategories] = useState(true);
   const [newProductName, setNewProductName] = useState("");
   const [newCategory, setNewCategory] = useState<string | null>(null);
   const [newThresholdDays, setNewThresholdDays] = useState("15");
   const [isCreatingProduct, setIsCreatingProduct] = useState(false);
 
-  // 5. useEffect para buscar dados e resetar o formulário
   useEffect(() => {
-    // Só executa quando o modal se torna visível
     if (visible) {
-      // Reseta o formulário
       setNewProductName("");
-      setNewThresholdDays("7");
-      setCategories([]);
-      setIsLoadingCategories(true);
-
-      const fetchCategories = async () => {
-        if (!token) return; // Sai se não houver token
-
-        try {
-          const response = await fetch(`${API_BASE_URL}/api/categories`, {
-            headers: { Authorization: `Bearer ${token}` },
-          });
-          if (!response.ok) throw new Error("Falha ao buscar categorias");
-
-          const data = await response.json();
-          setCategories(data.data || []);
-
-          // Seleciona a primeira categoria por padrão
-          if (data.data?.length > 0) {
-            setNewCategory(data.data[0].id);
-          }
-        } catch (error) {
-          Alert.alert("Erro", "Não foi possível carregar as categorias.");
-          onClose(); // Fecha o modal se as categorias falharem
-        } finally {
-          setIsLoadingCategories(false);
-        }
-      };
-
+      setNewThresholdDays("15");
       fetchCategories();
     }
-  }, [visible, token]); // Re-executa se o modal abrir ou o token mudar
+  }, [visible]);
 
-  // 6. A lógica de "Salvar" agora é interna
+  const fetchCategories = async () => {
+    if (!token) return;
+    try {
+      setIsLoadingCategories(true);
+      const response = await fetch(`${API_BASE_URL}/api/categories`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await response.json();
+      setCategories(data.data || []);
+      if (data.data?.length > 0) setNewCategory(data.data[0].id);
+    } catch (error) {
+      Alert.alert("Erro", "Falha ao carregar categorias.");
+    } finally {
+      setIsLoadingCategories(false);
+    }
+  };
+
   const handleCreateProduct = async () => {
-    if (
-      !newProductName ||
-      !newCategory ||
-      !newThresholdDays ||
-      !scannedBarcode
-    ) {
+    if (!newProductName || !newCategory || !scannedBarcode) {
       Alert.alert("Erro", "Preencha todos os campos.");
       return;
     }
 
     setIsCreatingProduct(true);
     try {
-      const body = {
-        name: newProductName,
-        categoryId: newCategory,
-        notificationThresholdDays: parseInt(newThresholdDays, 10),
-        barcode: scannedBarcode,
-      };
-
       const response = await fetch(`${API_BASE_URL}/api/products`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify(body),
+        body: JSON.stringify({
+          name: newProductName,
+          categoryId: newCategory,
+          notificationThresholdDays: parseInt(newThresholdDays, 10),
+          barcode: scannedBarcode,
+        }),
       });
 
       const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.message || "Não foi possível criar o produto.");
-      }
-
-      // SUCESSO!
-      // Alert.alert("Sucesso", `Produto "${data.data.name}" criado no catálogo.`);
-      // onClose();
+      if (!response.ok) throw new Error(data.message);
       onCreateSuccess(data.data);
-    } catch (error) {
-      console.error(error);
-      Alert.alert("Não foi possível criar o produto.");
+    } catch (error: any) {
+      Alert.alert("Erro", error.message || "Erro ao criar produto.");
     } finally {
       setIsCreatingProduct(false);
     }
@@ -131,94 +102,101 @@ export default function CreateProductModal({
   return (
     <Modal
       visible={visible}
-      transparent={true}
+      transparent
       animationType="slide"
       onRequestClose={onClose}>
-      <KeyboardAvoidingView behavior="padding" style={styles.modalContainer}>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
-            {/* 7. Lógica de Loading Interno */}
-            {isLoadingCategories ? (
-              <View style={styles.loadingContainer}>
-                <ActivityIndicator size="large" />
-                <Text>Carregando categorias...</Text>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        style={styles.modalContainer}>
+        <View
+          style={[styles.modalContent, { paddingBottom: insets.bottom + 20 }]}>
+          <View style={styles.grabber} />
+
+          {isLoadingCategories ? (
+            <View style={styles.loadingContainer}>
+              <ActivityIndicator size="large" color="#007AFF" />
+              <Text style={{ marginTop: 10 }}>Carregando configurações...</Text>
+            </View>
+          ) : (
+            <ScrollView
+              showsVerticalScrollIndicator={false}
+              keyboardShouldPersistTaps="handled">
+              <Text style={styles.modalTitle}>Novo Produto</Text>
+
+              <Text style={styles.label}>Código de Barras:</Text>
+              <TextInput
+                style={[styles.input, styles.inputDisabled]}
+                value={scannedBarcode || ""}
+                editable={false}
+              />
+
+              <Text style={styles.label}>Nome do Produto:</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="Ex: Óleo Motul 1L"
+                value={newProductName}
+                onChangeText={setNewProductName}
+              />
+
+              <View style={styles.row}>
+                <View style={{ flex: 1, marginRight: 10 }}>
+                  <Text style={styles.label}>Categoria:</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={newCategory}
+                      onValueChange={(val) => setNewCategory(val)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem} // Estilo específico para iOS
+                    >
+                      {categories.map((cat) => (
+                        <Picker.Item
+                          key={cat.id}
+                          label={cat.name}
+                          value={cat.id}
+                        />
+                      ))}
+                    </Picker>
+                  </View>
+                </View>
+
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Aviso (Dias):</Text>
+                  <View style={styles.pickerContainer}>
+                    <Picker
+                      selectedValue={newThresholdDays}
+                      onValueChange={(val) => setNewThresholdDays(val)}
+                      style={styles.picker}
+                      itemStyle={styles.pickerItem}>
+                      <Picker.Item label="15 dias" value="15" />
+                      <Picker.Item label="30 dias" value="30" />
+                      <Picker.Item label="60 dias" value="60" />
+                    </Picker>
+                  </View>
+                </View>
               </View>
-            ) : (
-              <>
-                <Text style={styles.modalTitle}>Cadastrar Novo Produto</Text>
 
-                <Text style={styles.label}>Código de Barras:</Text>
-                <TextInput
-                  style={[styles.input, styles.inputDisabled]}
-                  value={scannedBarcode || ""}
-                  editable={false}
-                />
+              <TouchableOpacity
+                style={[
+                  styles.saveButton,
+                  isCreatingProduct && styles.buttonDisabled,
+                ]}
+                onPress={handleCreateProduct}
+                disabled={isCreatingProduct}>
+                {isCreatingProduct ? (
+                  <ActivityIndicator color="#fff" />
+                ) : (
+                  <Text style={styles.saveButtonText}>Salvar no Catálogo</Text>
+                )}
+              </TouchableOpacity>
 
-                <Text style={styles.label}>Nome do Produto:</Text>
-                <TextInput
-                  style={styles.input}
-                  placeholder="Ex: Óleo YPF 1L 15W40"
-                  value={newProductName}
-                  onChangeText={setNewProductName}
-                />
-
-                <Text style={styles.label}>Categoria:</Text>
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={newCategory}
-                    onValueChange={(itemValue) => setNewCategory(itemValue!)}
-                    style={styles.picker}>
-                    {categories.map((cat) => (
-                      <Picker.Item
-                        key={cat.id}
-                        label={cat.name}
-                        value={cat.id}
-                      />
-                    ))}
-                  </Picker>
-                </View>
-
-                <Text style={styles.label}>
-                  Notificar Vencimento (Dias antes):
-                </Text>
-
-                <View style={styles.pickerContainer}>
-                  <Picker
-                    selectedValue={newThresholdDays}
-                    onValueChange={(itemValue) =>
-                      setNewThresholdDays(itemValue)
-                    }
-                    style={styles.picker}>
-                    <Picker.Item label="15 dias" value="15" />
-                    <Picker.Item label="30 dias" value="30" />
-                  </Picker>
-                </View>
-
-                <TouchableOpacity
-                  style={[
-                    styles.saveButton,
-                    isCreatingProduct && styles.buttonDisabled,
-                  ]}
-                  onPress={handleCreateProduct} // Chama a função interna
-                  disabled={isCreatingProduct}>
-                  {isCreatingProduct ? (
-                    <ActivityIndicator color="#fff" />
-                  ) : (
-                    <Text style={styles.saveButtonText}>
-                      Salvar no Catálogo
-                    </Text>
-                  )}
-                </TouchableOpacity>
-
-                <TouchableOpacity
-                  style={styles.cancelButton}
-                  onPress={onClose}
-                  disabled={isCreatingProduct}>
-                  <Text style={styles.cancelButtonText}>Cancelar</Text>
-                </TouchableOpacity>
-              </>
-            )}
-          </View>
+              <TouchableOpacity
+                style={styles.cancelButton}
+                onPress={onClose}
+                disabled={isCreatingProduct}>
+                <Text style={styles.cancelButtonText}>Cancelar</Text>
+              </TouchableOpacity>
+            </ScrollView>
+          )}
         </View>
       </KeyboardAvoidingView>
     </Modal>
@@ -226,81 +204,75 @@ export default function CreateProductModal({
 }
 
 const styles = StyleSheet.create({
-  loadingContainer: {
-    height: 300, // Dê uma altura fixa para o modal em loading
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  inputDisabled: {
-    backgroundColor: "#e0e0e0",
-    color: "#555",
-  },
-  pickerContainer: {
-    backgroundColor: "#f0f0f0",
-    borderRadius: 8,
-    marginBottom: 15,
-  },
-  picker: {
-    // No Android o picker tem um estilo nativo, no iOS pode precisar de altura
-    height: Platform.OS === "ios" ? 120 : "auto",
-  },
-  buttonDisabled: {
-    backgroundColor: "#aaa",
-  },
-  // Estilos do Modal
   modalContainer: {
     flex: 1,
-    justifyContent: "flex-end", // Sobe da parte inferior
+    justifyContent: "flex-end",
     backgroundColor: "rgba(0,0,0,0.5)",
   },
   modalContent: {
     backgroundColor: "white",
-    padding: 22,
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 5,
+    paddingHorizontal: 22,
+    paddingTop: 12,
+    borderTopLeftRadius: 25,
+    borderTopRightRadius: 25,
+    maxHeight: "90%",
+  },
+  grabber: {
+    width: 40,
+    height: 5,
+    backgroundColor: "#eee",
+    borderRadius: 3,
+    alignSelf: "center",
+    marginBottom: 15,
+  },
+  loadingContainer: {
+    height: 300,
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 16,
+    marginBottom: 20,
     textAlign: "center",
   },
-  label: {
-    fontSize: 14,
-    fontWeight: "bold",
-    color: "#333",
-    marginBottom: 6,
-  },
+  label: { fontSize: 13, fontWeight: "700", color: "#444", marginBottom: 5 },
   input: {
-    backgroundColor: "#f0f0f0",
-    padding: 12,
-    borderRadius: 8,
+    backgroundColor: "#f5f5f5",
+    padding: 14,
+    borderRadius: 10,
     fontSize: 16,
     marginBottom: 15,
   },
-  saveButton: {
-    backgroundColor: "#007AFF", // Azul padrão
-    padding: 15,
-    borderRadius: 10,
-    alignItems: "center",
+  inputDisabled: { backgroundColor: "#e8e8e8", color: "#888" },
+  row: {
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 10,
   },
-  saveButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
+  pickerContainer: {
+    backgroundColor: "#f5f5f5",
+    borderRadius: 10,
+    overflow: "hidden",
+    justifyContent: "center",
   },
-  cancelButton: {
-    padding: 10,
+  picker: {
+    height: Platform.OS === "ios" ? 120 : 50,
+    width: "100%",
+  },
+  pickerItem: {
+    fontSize: 14, // Diminuir a fonte no iOS ajuda a caber no container
+    height: 120,
+  },
+  saveButton: {
+    backgroundColor: "#007AFF",
+    padding: 16,
+    borderRadius: 12,
     alignItems: "center",
+    marginTop: 15,
   },
-  cancelButtonText: {
-    color: "#007AFF",
-    fontSize: 16,
-  },
+  saveButtonText: { color: "white", fontSize: 16, fontWeight: "bold" },
+  cancelButton: { padding: 15, alignItems: "center" },
+  cancelButtonText: { color: "#007AFF", fontSize: 16, fontWeight: "500" },
+  buttonDisabled: { backgroundColor: "#ccc" },
 });
